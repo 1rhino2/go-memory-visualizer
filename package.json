@@ -37,7 +37,17 @@
     "padding",
     "alignment",
     "optimization",
-    "performance"
+    "performance",
+    "profiler",
+    "cache",
+    "visualizer",
+    "analyzer",
+    "go-tools",
+    "struct-layout",
+    "memory-optimization",
+    "cache-optimization",
+    "golang-tools",
+    "vscode-go"
   ],
   "activationEvents": [
     "onLanguage:go"

@@ -1,6 +1,6 @@
 # Go Memory Layout Visualizer
 
-Real-time visualization of Go struct memory layout with padding detection and one-click optimization.
+A VS Code extension for real-time visualization and optimization of Go struct memory layout. This GitHub repository provides a powerful golang tool for analyzing struct padding, alignment, and cache performance in your Go code.
 
 [![Go](https://img.shields.io/badge/Go-00ADD8?logo=go&logoColor=white)](https://go.dev)
 [![VS Code](https://img.shields.io/badge/VS_Code-007ACC?logo=visualstudiocode&logoColor=white)](https://code.visualstudio.com)
@@ -8,7 +8,7 @@ Real-time visualization of Go struct memory layout with padding detection and on
 
 ## What It Does
 
-This extension shows you how Go lays out structs in memory - byte offsets, alignment, padding, everything. It'll highlight wasteful padding and let you optimize field ordering with one click.
+This vscode-go extension shows you exactly how Go lays out structs in memory - byte offsets, alignment, padding, and cache line boundaries. It highlights wasteful padding in your golang structs and optimizes field ordering with one click, helping you reduce memory usage and improve performance.
 
 ## Why Use This
 
