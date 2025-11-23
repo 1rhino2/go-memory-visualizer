@@ -31,3 +31,28 @@ export interface OptimizationResult {
   bytesSaved: number;
   reorderedFields: string[];
 }
+
+export interface StructDefinition {
+  name: string;
+  fields: Array<{ name: string; typeName: string }>;
+}
+
+export interface ExportFormat {
+  structs: Array<{
+    name: string;
+    totalSize: number;
+    alignment: number;
+    totalPadding: number;
+    paddingPercentage: number;
+    fields: Array<{
+      name: string;
+      type: string;
+      offset: number;
+      size: number;
+      alignment: number;
+      paddingAfter: number;
+    }>;
+  }>;
+  architecture: Architecture;
+  exportedAt: string;
+}
