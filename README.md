@@ -1,3 +1,6 @@
+
+NOTE: v0.2 will be out by the 27th, with nested struxt support and a website for the project.(made this on my phone in class. in a rush. thanks guys for the support)
+
 # Go Memory Layout Visualizer
 
 A VS Code extension for real-time visualization and optimization of Go struct memory layout. This GitHub repository provides a powerful golang tool for analyzing struct padding, alignment, and cache performance in your Go code.
