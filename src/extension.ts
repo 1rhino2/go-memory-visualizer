@@ -1,7 +1,9 @@
 import * as vscode from 'vscode';
+import * as fs from 'fs';
+import * as path from 'path';
 import { GoParser } from './goParser';
 import { StructOptimizer } from './optimizer';
-import { Architecture } from './types';
+import { Architecture, ExportFormat } from './types';
 
 // default to amd64 since most devs use that
 let currentArch: Architecture = 'amd64';
@@ -42,6 +44,12 @@ export function activate(context: vscode.ExtensionContext) {
   context.subscriptions.push(
     vscode.commands.registerCommand('goMemoryVisualizer.toggleArchitecture', () => {
       toggleArchitectureCommand(parser);
+    })
+  );
+
+  context.subscriptions.push(
+    vscode.commands.registerCommand('goMemoryVisualizer.exportLayout', () => {
+      exportLayoutCommand(parser);
     })
   );
 
@@ -246,6 +254,124 @@ async function toggleArchitectureCommand(parser: GoParser) {
     
     vscode.window.showInformationMessage(`Architecture set to ${selected}`);
   }
+}
+
+async function exportLayoutCommand(parser: GoParser) {
+  const editor = vscode.window.activeTextEditor;
+  if (!editor || editor.document.languageId !== 'go') {
+    vscode.window.showErrorMessage('Please open a Go file');
+    return;
+  }
+
+  const text = editor.document.getText();
+  const structs = parser.parseStructs(text);
+
+  if (structs.length === 0) {
+    vscode.window.showInformationMessage('No structs found in current file');
+    return;
+  }
+
+  const format = await vscode.window.showQuickPick(['JSON', 'Markdown', 'CSV'], {
+    placeHolder: 'Select export format'
+  });
+
+  if (!format) {
+    return;
+  }
+
+  const exportData: ExportFormat = {
+    structs: structs.map(s => ({
+      name: s.name,
+      totalSize: s.totalSize,
+      alignment: s.alignment,
+      totalPadding: s.totalPadding,
+      paddingPercentage: s.totalSize > 0 ? (s.totalPadding / s.totalSize) * 100 : 0,
+      fields: s.fields.map(f => ({
+        name: f.name,
+        type: f.typeName,
+        offset: f.offset,
+        size: f.size,
+        alignment: f.alignment,
+        paddingAfter: f.paddingAfter
+      }))
+    })),
+    architecture: currentArch,
+    exportedAt: new Date().toISOString()
+  };
+
+  let content: string;
+  let extension: string;
+
+  switch (format) {
+    case 'JSON':
+      content = JSON.stringify(exportData, null, 2);
+      extension = 'json';
+      break;
+    
+    case 'Markdown':
+      content = generateMarkdownReport(exportData);
+      extension = 'md';
+      break;
+    
+    case 'CSV':
+      content = generateCSVReport(exportData);
+      extension = 'csv';
+      break;
+    
+    default:
+      return;
+  }
+
+  const defaultFileName = `memory-layout-${currentArch}-${Date.now()}.${extension}`;
+  const uri = await vscode.window.showSaveDialog({
+    defaultUri: vscode.Uri.file(path.join(vscode.workspace.rootPath || '', defaultFileName)),
+    filters: {
+      [format]: [extension]
+    }
+  });
+
+  if (uri) {
+    fs.writeFileSync(uri.fsPath, content);
+    vscode.window.showInformationMessage(`Memory layout exported to ${uri.fsPath}`);
+  }
+}
+
+function generateMarkdownReport(data: ExportFormat): string {
+  let md = `# Go Memory Layout Report\n\n`;
+  md += `**Architecture:** ${data.architecture}\n\n`;
+  md += `**Generated:** ${data.exportedAt}\n\n`;
+  md += `---\n\n`;
+
+  for (const struct of data.structs) {
+    md += `## ${struct.name}\n\n`;
+    md += `- **Total Size:** ${struct.totalSize} bytes\n`;
+    md += `- **Alignment:** ${struct.alignment} bytes\n`;
+    md += `- **Total Padding:** ${struct.totalPadding} bytes (${struct.paddingPercentage.toFixed(2)}%)\n\n`;
+    
+    md += `### Fields\n\n`;
+    md += `| Field | Type | Offset | Size | Alignment | Padding After |\n`;
+    md += `|-------|------|--------|------|-----------|---------------|\n`;
+    
+    for (const field of struct.fields) {
+      md += `| ${field.name} | ${field.type} | ${field.offset} | ${field.size} | ${field.alignment} | ${field.paddingAfter} |\n`;
+    }
+    
+    md += `\n`;
+  }
+
+  return md;
+}
+
+function generateCSVReport(data: ExportFormat): string {
+  let csv = `Struct,Field,Type,Offset,Size,Alignment,Padding After,Total Size,Total Padding,Padding Percentage,Architecture\n`;
+  
+  for (const struct of data.structs) {
+    for (const field of struct.fields) {
+      csv += `"${struct.name}","${field.name}","${field.type}",${field.offset},${field.size},${field.alignment},${field.paddingAfter},${struct.totalSize},${struct.totalPadding},${struct.paddingPercentage.toFixed(2)},${data.architecture}\n`;
+    }
+  }
+
+  return csv;
 }
 
 class MemoryLayoutHoverProvider implements vscode.HoverProvider {
