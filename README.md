@@ -25,6 +25,8 @@ This vscode-go extension shows you exactly how Go lays out structs in memory - b
 - Byte offsets so you know exactly where fields live
 - Size calculations and alignment requirements
 - Padding detection with visual warnings
+- **NEW in v0.2**: Nested struct support with recursive size calculation
+- **NEW in v0.2**: Embedded field detection and analysis
 
 ### Visual Feedback
 
@@ -39,6 +41,14 @@ This vscode-go extension shows you exactly how Go lays out structs in memory - b
 - Shows exact bytes saved before and after
 - Preserves your comments and struct tags
 - Safe refactoring that doesn't break anything
+- **NEW in v0.2**: Works with nested and embedded structs
+
+### Export and Reporting
+
+- **NEW in v0.2**: Export memory layout reports to JSON, Markdown, or CSV
+- Detailed field-by-field analysis with offset, size, alignment, and padding information
+- Architecture-specific reports for cross-platform analysis
+- Perfect for documentation, code reviews, and performance audits
 
 ### Multi-Architecture Support
 
@@ -133,6 +143,7 @@ Access via Command Palette (`Ctrl+Shift+P` / `Cmd+Shift+P`):
 | `Go: Show Memory Layout` | Display detailed memory breakdown for all structs |
 | `Go: Optimize Struct Memory Layout` | Reorder fields in struct at cursor to minimize padding |
 | `Go: Toggle Architecture` | Switch between amd64, arm64, and 386 |
+| `Go: Export Memory Layout Report` | **NEW in v0.2**: Export struct analysis to JSON/Markdown/CSV |
 
 ---
 
@@ -209,6 +220,119 @@ type APIResponse struct {
 ```
 
 **Impact**: 1M responses = **8 MB saved**
+
+---
+
+## New in v0.2.0
+
+### Nested Struct Support
+
+The extension now automatically calculates memory layout for structs containing other custom structs:
+
+```go
+type Point struct {
+    X float64 // 8 bytes
+    Y float64 // 8 bytes
+}
+
+type Rectangle struct {
+    TopLeft  Point  // 16 bytes (nested struct)
+    Width    uint32 // 4 bytes
+    Height   uint32 // 4 bytes
+}
+// Total: 24 bytes
+```
+
+The parser performs two-pass analysis:
+
+1. First pass: Register all struct definitions
+2. Second pass: Calculate layouts with nested struct sizes resolved
+
+### Embedded Field Handling
+
+Embedded fields (promoted fields) are now properly detected and analyzed:
+
+```go
+type Base struct {
+    ID        uint64 // 8 bytes
+    CreatedAt int64  // 8 bytes
+}
+
+type User struct {
+    Base           // embedded: 16 bytes
+    Name   string  // 16 bytes
+    Active bool    // 1 byte + 7 padding
+}
+// Total: 40 bytes
+```
+
+Embedded pointers are also supported:
+
+```go
+type Document struct {
+    *Metadata         // embedded pointer: 8 bytes
+    Title     string  // 16 bytes
+    Published bool    // 1 byte
+}
+```
+
+### Export Memory Layout Reports
+
+New command to export detailed struct analysis:
+
+**JSON Format**: Machine-readable with full field details
+
+```json
+{
+  "structs": [{
+    "name": "User",
+    "totalSize": 40,
+    "alignment": 8,
+    "totalPadding": 7,
+    "paddingPercentage": 17.5,
+    "fields": [...]
+  }],
+  "architecture": "amd64",
+  "exportedAt": "2025-11-23T12:00:00.000Z"
+}
+```
+
+**Markdown Format**: Human-readable documentation
+
+```markdown
+## User
+
+- **Total Size:** 40 bytes
+- **Alignment:** 8 bytes
+- **Total Padding:** 7 bytes (17.5%)
+
+### Fields
+
+| Field | Type | Offset | Size | Alignment | Padding After |
+|-------|------|--------|------|-----------|---------------|
+| ID    | uint64 | 0    | 8    | 8         | 0             |
+```
+
+**CSV Format**: Perfect for spreadsheets and data analysis
+
+```csv
+Struct,Field,Type,Offset,Size,Alignment,Padding After,Total Size,Total Padding,Padding Percentage,Architecture
+User,ID,uint64,0,8,8,0,40,7,17.5,amd64
+```
+
+**Usage:**
+
+1. Open a Go file with struct definitions
+2. Run command: `Go: Export Memory Layout Report`
+3. Choose format: JSON, Markdown, or CSV
+4. Save to desired location
+
+Perfect for:
+
+- Code reviews and documentation
+- Performance audits
+- Cross-architecture analysis
+- Team collaboration
 
 ---
 
@@ -302,8 +426,10 @@ npm test
 
 ## Known Issues
 
-- Nested struct support (planned for v0.2.0)
-- Embedded struct handling (planned for v0.2.0)
+None for v0.2.0! Previous limitations resolved:
+
+- ~~Nested struct support~~ ✅ Added in v0.2.0
+- ~~Embedded struct handling~~ ✅ Added in v0.2.0
 - Union type support (planned for v0.3.0)
 
 See [GitHub Issues](https://github.com/1rhino2/go-memory-visualizer/issues) for full list.
@@ -334,17 +460,20 @@ MIT License - see [LICENSE](LICENSE) file for details.
 
 ## Roadmap
 
-### v0.2.0 (Planned)
-- [ ] Nested struct support
-- [ ] Embedded field handling
-- [ ] Export layout reports
+### v0.2.0 - Released 2025-11-23
+
+- [x] Nested struct support
+- [x] Embedded field handling
+- [x] Export layout reports
 
 ### v0.3.0 (Planned)
+
 - [ ] Union type support
 - [ ] Bitfield visualization
 - [ ] Memory alignment profiler
 
 ### v1.0.0 (Future)
+
 - [ ] Integration with Go compiler
 - [ ] Benchmark comparison tools
 - [ ] Team collaboration features
