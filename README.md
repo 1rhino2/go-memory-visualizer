@@ -1,5 +1,5 @@
 
-NOTE: v0.2 will be out by the 27th, with nested struct support and a website for the project.(made this on my phone in class. in a rush. thanks guys for the support)
+NOTE: v0.2 will be out by the 27th, with nested struct support and a website for the project. Also, Im getting a friend to help me maximize SEO, expect keyword heavy text(made this on my phone in class. in a rush. thanks guys for the support)
 
 # Go Memory Layout Visualizer
 
