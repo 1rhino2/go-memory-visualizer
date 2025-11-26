@@ -1,0 +1,465 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    
+    <!-- SEO Meta Tags -->
+    <meta name="description" content="Learn how Go struct memory layout affects performance. Understand CPU cache lines, memory alignment rules for amd64/arm64/386, and best practices for optimizing Go struct field ordering.">
+    <meta name="keywords" content="go memory performance, golang struct optimization, cpu cache lines, memory alignment go, golang performance tuning, struct field ordering go, go memory model, golang cache locality">
+    <meta name="author" content="RhinoSoftware">
+    <meta name="robots" content="index, follow">
+    <link rel="canonical" href="https://1rhino2.github.io/go-memory-visualizer/performance.html">
+    
+    <!-- Open Graph -->
+    <meta property="og:type" content="article">
+    <meta property="og:url" content="https://1rhino2.github.io/go-memory-visualizer/performance.html">
+    <meta property="og:title" content="Go Struct Memory Performance Guide">
+    <meta property="og:description" content="Learn how memory layout affects Go application performance. CPU cache optimization, alignment rules, and benchmarking tips.">
+    <meta property="og:site_name" content="Go Memory Visualizer">
+    
+    <!-- Twitter -->
+    <meta name="twitter:card" content="summary">
+    <meta name="twitter:title" content="Go Struct Memory Performance Guide">
+    <meta name="twitter:description" content="Learn how memory layout affects Go application performance. CPU cache optimization, alignment rules, and benchmarking tips.">
+    
+    <!-- Schema.org -->
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@type": "TechArticle",
+        "headline": "Go Struct Memory Layout Performance Guide",
+        "description": "Comprehensive guide on how Go struct memory layout affects application performance, including CPU cache optimization and alignment rules",
+        "author": {
+            "@type": "Organization",
+            "name": "RhinoSoftware"
+        },
+        "publisher": {
+            "@type": "Organization",
+            "name": "Go Memory Visualizer"
+        },
+        "mainEntityOfPage": "https://1rhino2.github.io/go-memory-visualizer/performance.html"
+    }
+    </script>
+    
+    <title>Performance Guide - Go Memory Layout | Go Memory Visualizer</title>
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        .perf-section {
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 2rem;
+            margin-bottom: 2rem;
+        }
+        .perf-section h2 {
+            font-size: 1.5rem;
+            margin-bottom: 1rem;
+            color: var(--go-blue);
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+        .perf-section h2::before {
+            content: attr(data-icon);
+            font-size: 0.7rem;
+            padding: 0.4rem 0.6rem;
+            background: var(--go-blue);
+            color: #000;
+            border-radius: 4px;
+            font-weight: 700;
+        }
+        .perf-section h3 {
+            font-size: 1.15rem;
+            margin: 1.5rem 0 0.75rem;
+            color: var(--text-primary);
+        }
+        .perf-section p {
+            color: var(--text-secondary);
+            margin-bottom: 1rem;
+            line-height: 1.7;
+        }
+        .perf-section ul, .perf-section ol {
+            color: var(--text-secondary);
+            margin-left: 1.5rem;
+            margin-bottom: 1rem;
+        }
+        .perf-section li {
+            margin-bottom: 0.5rem;
+            line-height: 1.6;
+        }
+        .code-block {
+            background: var(--darker-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            padding: 1.25rem;
+            margin: 1rem 0;
+            overflow-x: auto;
+        }
+        .code-block code {
+            font-size: 0.875rem;
+            line-height: 1.7;
+            color: var(--text-primary);
+        }
+        .code-block .comment {
+            color: #6a737d;
+        }
+        .code-block .keyword {
+            color: #ff79c6;
+        }
+        .code-block .type {
+            color: #8be9fd;
+        }
+        .alignment-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1rem 0;
+        }
+        .alignment-table th,
+        .alignment-table td {
+            padding: 0.75rem 1rem;
+            text-align: left;
+            border-bottom: 1px solid var(--border-color);
+        }
+        .alignment-table th {
+            background: var(--darker-bg);
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+        .alignment-table td {
+            color: var(--text-secondary);
+            font-family: 'Fira Code', monospace;
+            font-size: 0.875rem;
+        }
+        .alignment-table tr:hover td {
+            background: rgba(0, 173, 216, 0.05);
+        }
+        .cache-diagram {
+            display: flex;
+            gap: 0.25rem;
+            margin: 1rem 0;
+            flex-wrap: wrap;
+        }
+        .cache-line {
+            display: flex;
+            background: var(--darker-bg);
+            border-radius: 4px;
+            overflow: hidden;
+            flex: 1;
+            min-width: 200px;
+        }
+        .cache-block {
+            padding: 0.5rem;
+            text-align: center;
+            font-size: 0.75rem;
+            font-family: 'Fira Code', monospace;
+        }
+        .cache-block.data {
+            background: var(--go-blue);
+            color: #000;
+        }
+        .cache-block.wasted {
+            background: var(--accent-yellow);
+            color: #000;
+        }
+        .highlight-box {
+            background: rgba(0, 173, 216, 0.1);
+            border-left: 3px solid var(--go-blue);
+            padding: 1rem 1.25rem;
+            margin: 1rem 0;
+            border-radius: 0 4px 4px 0;
+        }
+        .highlight-box p {
+            margin: 0;
+            color: var(--text-primary);
+        }
+        .stats-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            margin: 1.5rem 0;
+        }
+        .stat-box {
+            background: var(--darker-bg);
+            padding: 1.25rem;
+            border-radius: 6px;
+            text-align: center;
+        }
+        .stat-box .value {
+            font-size: 1.75rem;
+            font-weight: 700;
+            color: var(--go-blue);
+            display: block;
+        }
+        .stat-box .label {
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            margin-top: 0.25rem;
+        }
+        .breadcrumb {
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+            margin-bottom: 2rem;
+        }
+        .breadcrumb a {
+            color: var(--go-blue);
+            text-decoration: none;
+        }
+        .breadcrumb a:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar" role="navigation">
+        <div class="container">
+            <div class="nav-brand">
+                <a href="index.html">
+                    <span class="logo">GMV</span>
+                    <span class="brand-text">Go Memory Visualizer</span>
+                </a>
+            </div>
+            <div class="nav-links">
+                <a href="index.html">Home</a>
+                <a href="index.html#features">Features</a>
+                <a href="examples.html">Examples</a>
+                <a href="performance.html">Performance</a>
+                <a href="https://github.com/1rhino2/go-memory-visualizer" target="_blank" rel="noopener" class="github-link">
+                    <svg width="20" height="20" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+                        <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/>
+                    </svg>
+                    GitHub
+                </a>
+            </div>
+        </div>
+    </nav>
+
+    <main style="padding: 3rem 0; background: var(--darker-bg); min-height: 100vh;">
+        <div class="container">
+            <nav class="breadcrumb" aria-label="Breadcrumb">
+                <a href="index.html">Home</a> / <span>Performance Guide</span>
+            </nav>
+
+            <h1 class="section-title" style="margin-bottom: 1rem;">Performance Impact of Memory Layout</h1>
+            <p class="section-subtitle" style="margin-bottom: 3rem;">Understanding how struct field ordering affects Go application performance</p>
+
+            <div class="stats-row">
+                <div class="stat-box">
+                    <span class="value">5-20%</span>
+                    <span class="label">Throughput Improvement</span>
+                </div>
+                <div class="stat-box">
+                    <span class="value">10-30%</span>
+                    <span class="label">Memory Reduction</span>
+                </div>
+                <div class="stat-box">
+                    <span class="value">64 bytes</span>
+                    <span class="label">CPU Cache Line Size</span>
+                </div>
+            </div>
+
+            <article class="perf-section">
+                <h2 data-icon="CACHE">CPU Cache Lines and Performance</h2>
+                <p>Modern CPUs fetch memory in <strong>64-byte cache lines</strong>. When a struct spans multiple cache lines, accessing it requires multiple memory fetches, reducing performance significantly.</p>
+                
+                <h3>Cache-Inefficient Struct</h3>
+                <p>This struct forces two cache line fetches due to poor field ordering:</p>
+                <div class="code-block">
+                    <code><span class="keyword">type</span> BadLayout <span class="keyword">struct</span> {
+    Field1 [60]<span class="type">byte</span>  <span class="comment">// Uses most of first cache line</span>
+    Flag   <span class="type">bool</span>      <span class="comment">// Forces second cache line</span>
+    Field2 <span class="type">int64</span>     <span class="comment">// Also in second cache line</span>
+}</code>
+                </div>
+
+                <div class="cache-diagram">
+                    <div class="cache-line">
+                        <div class="cache-block data" style="flex: 60;">Field1 (60)</div>
+                        <div class="cache-block wasted" style="flex: 4;">pad</div>
+                    </div>
+                    <div class="cache-line">
+                        <div class="cache-block data" style="flex: 1;">Flag</div>
+                        <div class="cache-block wasted" style="flex: 7;">pad</div>
+                        <div class="cache-block data" style="flex: 8;">Field2</div>
+                    </div>
+                </div>
+
+                <h3>Optimized Layout</h3>
+                <div class="code-block">
+                    <code><span class="keyword">type</span> GoodLayout <span class="keyword">struct</span> {
+    Field1 [60]<span class="type">byte</span>  <span class="comment">// 60 bytes</span>
+    Field2 <span class="type">int64</span>     <span class="comment">// 8 bytes - starts at aligned boundary</span>
+    Flag   <span class="type">bool</span>      <span class="comment">// 1 byte + minimal padding</span>
+}</code>
+                </div>
+
+                <div class="highlight-box">
+                    <p><strong>Key insight:</strong> Keeping hot fields together and within cache line boundaries can improve iteration performance by 10-20% for large slices of structs.</p>
+                </div>
+            </article>
+
+            <article class="perf-section">
+                <h2 data-icon="ALIGN">Memory Alignment Rules</h2>
+                <p>Go follows specific alignment rules for different architectures. Fields must start at addresses divisible by their alignment requirement.</p>
+
+                <h3>AMD64 / ARM64 (64-bit)</h3>
+                <table class="alignment-table">
+                    <thead>
+                        <tr>
+                            <th>Type</th>
+                            <th>Size</th>
+                            <th>Alignment</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr><td>bool, int8, uint8</td><td>1 byte</td><td>1 byte</td></tr>
+                        <tr><td>int16, uint16</td><td>2 bytes</td><td>2 bytes</td></tr>
+                        <tr><td>int32, uint32, float32</td><td>4 bytes</td><td>4 bytes</td></tr>
+                        <tr><td>int64, uint64, float64</td><td>8 bytes</td><td>8 bytes</td></tr>
+                        <tr><td>string</td><td>16 bytes</td><td>8 bytes</td></tr>
+                        <tr><td>slice</td><td>24 bytes</td><td>8 bytes</td></tr>
+                        <tr><td>pointer, map, chan, interface</td><td>8 bytes</td><td>8 bytes</td></tr>
+                    </tbody>
+                </table>
+
+                <h3>386 (32-bit)</h3>
+                <p>On 32-bit systems, pointers are 4 bytes and int64/float64 have 4-byte alignment (not 8). This means struct layouts can differ between architectures.</p>
+
+                <div class="highlight-box">
+                    <p><strong>Use the extension:</strong> Switch between architectures in Go Memory Visualizer to see exactly how your struct layouts differ across platforms.</p>
+                </div>
+            </article>
+
+            <article class="perf-section">
+                <h2 data-icon="BEST">Best Practices</h2>
+                <ol>
+                    <li><strong>Order fields by alignment</strong> - Place 8-byte aligned fields first, then 4-byte, then 2-byte, finally 1-byte</li>
+                    <li><strong>Group similar types</strong> - Keep fields of the same size together to minimize padding</li>
+                    <li><strong>Consider cache line boundaries</strong> - For performance-critical structs, keep total size under 64 bytes when possible</li>
+                    <li><strong>Use the extension's optimization</strong> - One-click automatic field reordering</li>
+                    <li><strong>Benchmark your specific use case</strong> - Performance gains vary by access patterns</li>
+                </ol>
+
+                <h3>Optimal Field Ordering Pattern</h3>
+                <div class="code-block">
+                    <code><span class="keyword">type</span> OptimalStruct <span class="keyword">struct</span> {
+    <span class="comment">// 8-byte aligned fields first</span>
+    Pointer   *SomeType
+    Slice     []<span class="type">byte</span>
+    String    <span class="type">string</span>
+    Int64     <span class="type">int64</span>
+    Float64   <span class="type">float64</span>
+    
+    <span class="comment">// 4-byte aligned fields</span>
+    Int32     <span class="type">int32</span>
+    Float32   <span class="type">float32</span>
+    
+    <span class="comment">// 2-byte aligned fields</span>
+    Int16     <span class="type">int16</span>
+    
+    <span class="comment">// 1-byte aligned fields last</span>
+    Bool1     <span class="type">bool</span>
+    Bool2     <span class="type">bool</span>
+    Byte1     <span class="type">byte</span>
+}</code>
+                </div>
+            </article>
+
+            <article class="perf-section">
+                <h2 data-icon="PERF">Real-World Performance Gains</h2>
+                <ul>
+                    <li><strong>API Servers:</strong> 5-15% throughput improvement from better cache locality on request/response structs</li>
+                    <li><strong>Data Processing:</strong> 10-20% faster iteration over large slices of optimized structs</li>
+                    <li><strong>Memory Usage:</strong> 10-30% reduction in heap allocations, reducing GC pressure</li>
+                    <li><strong>Cloud Costs:</strong> Smaller memory footprint = lower infrastructure costs at scale</li>
+                </ul>
+            </article>
+
+            <article class="perf-section">
+                <h2 data-icon="TEST">Benchmarking Your Structs</h2>
+                <p>Always benchmark your specific use case to measure actual performance impact:</p>
+
+                <div class="code-block">
+                    <code><span class="keyword">func</span> BenchmarkBadLayout(b *testing.B) {
+    items := make([]BadLayout, 10000)
+    b.ResetTimer()
+    <span class="keyword">for</span> i := 0; i < b.N; i++ {
+        <span class="keyword">for</span> j := <span class="keyword">range</span> items {
+            _ = items[j].Flag
+        }
+    }
+}
+
+<span class="keyword">func</span> BenchmarkGoodLayout(b *testing.B) {
+    items := make([]GoodLayout, 10000)
+    b.ResetTimer()
+    <span class="keyword">for</span> i := 0; i < b.N; i++ {
+        <span class="keyword">for</span> j := <span class="keyword">range</span> items {
+            _ = items[j].Flag
+        }
+    }
+}</code>
+                </div>
+
+                <p>Run with: <code>go test -bench=. -benchmem</code></p>
+            </article>
+
+            <article class="perf-section">
+                <h2 data-icon="TOOLS">Related Tools</h2>
+                <ul>
+                    <li><strong>Go Memory Visualizer</strong> - Real-time visualization and one-click optimization</li>
+                    <li><strong>go tool compile -m</strong> - Escape analysis to see what allocates on heap</li>
+                    <li><strong>go build -gcflags=-m</strong> - Additional compiler optimization insights</li>
+                    <li><strong>pprof</strong> - Memory profiling for production applications</li>
+                    <li><strong>unsafe.Sizeof()</strong> - Check struct sizes programmatically</li>
+                </ul>
+            </article>
+
+            <article class="perf-section">
+                <h2 data-icon="DOCS">Further Reading</h2>
+                <ul>
+                    <li><a href="https://go.dev/ref/mem" target="_blank" rel="noopener">Go Memory Model</a> - Official documentation</li>
+                    <li><a href="https://go.dev/doc/effective_go" target="_blank" rel="noopener">Effective Go</a> - Best practices</li>
+                    <li><a href="https://pkg.go.dev/unsafe" target="_blank" rel="noopener">unsafe package</a> - Low-level memory operations</li>
+                </ul>
+            </article>
+
+            <div style="text-align: center; margin-top: 3rem;">
+                <a href="https://marketplace.visualstudio.com/items?itemName=RhinoSoftware.go-memory-visualizer" class="btn btn-primary" rel="noopener">
+                    Install Go Memory Visualizer
+                </a>
+                <a href="examples.html" class="btn btn-secondary" style="margin-left: 1rem;">
+                    View Examples
+                </a>
+            </div>
+        </div>
+    </main>
+
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-content">
+                <div class="footer-section">
+                    <h4>Go Memory Visualizer</h4>
+                    <p>Real-time struct memory optimization for VS Code</p>
+                    <p class="footer-version">v0.2.0</p>
+                </div>
+                <div class="footer-section">
+                    <h4>Quick Links</h4>
+                    <ul>
+                        <li><a href="index.html">Home</a></li>
+                        <li><a href="examples.html">Examples</a></li>
+                        <li><a href="performance.html">Performance</a></li>
+                        <li><a href="https://github.com/1rhino2/go-memory-visualizer">GitHub</a></li>
+                    </ul>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <p>&copy; 2025 RhinoSoftware. Open source under the MIT License.</p>
+            </div>
+        </div>
+    </footer>
+
+    <script src="script.js"></script>
+</body>
+</html>

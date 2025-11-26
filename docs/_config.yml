@@ -1,0 +1,5 @@
+theme: jekyll-theme-cayman
+title: Go Memory Layout Visualizer
+description: Real-time visualization and optimization of Go struct memory layout
+show_downloads: true
+google_analytics: UA-XXXXXXXXX-X

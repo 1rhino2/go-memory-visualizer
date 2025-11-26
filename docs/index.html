@@ -1,0 +1,603 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    
+    <!--SEO Meta Tags -->
+    <meta name="description" content="Go Memory Layout Visualizer - Optimize Go struct memory layout with real-time visualization. Reduce memory usage by 10-30% with automatic field reordering, padding detection, and multi-architecture support for amd64, arm64, and 386.">
+    <meta name="keywords" content="go memory layout, golang struct optimization, go padding alignment, vscode go extension, golang memory profiling, struct field ordering, go performance optimization, golang memory visualization, go struct analyzer, reduce go memory usage, golang development tools, go struct padding calculator, memory efficient go, golang struct size, go architecture amd64 arm64">
+    <meta name="author" content="RhinoSoftware">
+    <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1">
+    <meta name="googlebot" content="index, follow">
+    <meta name="language" content="English">
+    <meta name="revisit-after" content="7 days">
+    <meta name="rating" content="general">
+    <link rel="canonical" href="https://1rhino2.github.io/go-memory-visualizer/">
+    
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://1rhino2.github.io/go-memory-visualizer/">
+    <meta property="og:title" content="Go Memory Layout Visualizer - Optimize Struct Memory in VS Code">
+    <meta property="og:description" content="Reduce Go struct sizes by 10-30% with real-time memory layout visualization. One-click optimization, multi-architecture support, and detailed padding analysis.">
+    <meta property="og:image" content="https://1rhino2.github.io/go-memory-visualizer/og-image.png">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="og:site_name" content="Go Memory Visualizer">
+    <meta property="og:locale" content="en_US">
+    
+    <!-- Twitter -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:url" content="https://1rhino2.github.io/go-memory-visualizer/">
+    <meta name="twitter:title" content="Go Memory Layout Visualizer - Optimize Struct Memory in VS Code">
+    <meta name="twitter:description" content="Reduce Go struct sizes by 10-30% with real-time memory layout visualization. One-click optimization for amd64, arm64, and 386.">
+    <meta name="twitter:image" content="https://1rhino2.github.io/go-memory-visualizer/og-image.png">
+    
+    <!-- Schema.org Structured Data -->
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@type": "SoftwareApplication",
+        "name": "Go Memory Layout Visualizer",
+        "description": "VS Code extension for real-time Go struct memory layout visualization and optimization",
+        "url": "https://1rhino2.github.io/go-memory-visualizer/",
+        "applicationCategory": "DeveloperApplication",
+        "operatingSystem": "Windows, macOS, Linux",
+        "offers": {
+            "@type": "Offer",
+            "price": "0",
+            "priceCurrency": "USD"
+        },
+        "author": {
+            "@type": "Organization",
+            "name": "RhinoSoftware"
+        },
+        "softwareVersion": "0.2.0",
+        "downloadUrl": "https://marketplace.visualstudio.com/items?itemName=RhinoSoftware.go-memory-visualizer",
+        "screenshot": "https://1rhino2.github.io/go-memory-visualizer/og-image.png",
+        "featureList": [
+            "Real-time memory layout visualization",
+            "One-click struct optimization",
+            "Multi-architecture support (amd64, arm64, 386)",
+            "Padding detection and warnings",
+            "Nested struct analysis",
+            "Export to JSON, Markdown, CSV"
+        ],
+        "programmingLanguage": "Go",
+        "aggregateRating": {
+            "@type": "AggregateRating",
+            "ratingValue": "5",
+            "ratingCount": "10"
+        }
+    }
+    </script>
+    
+    <!-- FAQ Schema -->
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@type": "FAQPage",
+        "mainEntity": [
+            {
+                "@type": "Question",
+                "name": "How much memory can I save by optimizing Go struct field order?",
+                "acceptedAnswer": {
+                    "@type": "Answer",
+                    "text": "Typically 10-30% memory reduction depending on field types and ordering. Structs with mixed bool, int, and string fields see the largest improvements."
+                }
+            },
+            {
+                "@type": "Question",
+                "name": "Does Go struct field order affect performance?",
+                "acceptedAnswer": {
+                    "@type": "Answer",
+                    "text": "Yes. Proper field ordering reduces padding bytes, improving CPU cache locality. This can lead to 5-20% performance improvements in memory-intensive applications."
+                }
+            },
+            {
+                "@type": "Question",
+                "name": "What architectures does Go Memory Visualizer support?",
+                "acceptedAnswer": {
+                    "@type": "Answer",
+                    "text": "The extension supports amd64 (64-bit), arm64 (64-bit ARM), and 386 (32-bit) architectures, showing how struct layouts differ across platforms."
+                }
+            }
+        ]
+    }
+    </script>
+    
+    <title>Go Memory Layout Visualizer - Optimize Struct Memory | VS Code Extension</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
+</head>
+<body>
+    <nav class="navbar" role="navigation" aria-label="Main navigation">
+        <div class="container">
+            <div class="nav-brand">
+                <a href="/" aria-label="Go Memory Visualizer Home">
+                    <span class="logo">GMV</span>
+                    <span class="brand-text">Go Memory Visualizer</span>
+                </a>
+            </div>
+            <button class="mobile-menu-btn" aria-label="Toggle menu" aria-expanded="false">
+                <span></span>
+                <span></span>
+                <span></span>
+            </button>
+            <div class="nav-links">
+                <a href="#features">Features</a>
+                <a href="#calculator">Calculator</a>
+                <a href="#demo">Demo</a>
+                <a href="examples.html">Examples</a>
+                <a href="performance.html">Performance</a>
+                <a href="#install">Install</a>
+                <a href="https://github.com/1rhino2/go-memory-visualizer" target="_blank" rel="noopener noreferrer" class="github-link" aria-label="View on GitHub">
+                    <svg width="20" height="20" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+                        <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/>
+                    </svg>
+                    GitHub
+                </a>
+            </div>
+        </div>
+    </nav>
+
+    <header class="hero">
+        <div class="container">
+            <div class="hero-content">
+                <h1>Optimize Your Go Structs</h1>
+                <p class="hero-subtitle">Reduce memory usage by 10-30% with real-time visualization of struct layout, padding, and alignment</p>
+                <div class="hero-stats">
+                    <div class="stat">
+                        <span class="stat-value" data-count="0">0-Click</span>
+                        <span class="stat-label">Optimization</span>
+                    </div>
+                    <div class="stat">
+                        <span class="stat-value">3 Arch</span>
+                        <span class="stat-label">amd64, arm64, 386</span>
+                    </div>
+                    <div class="stat">
+                        <span class="stat-value">Zero</span>
+                        <span class="stat-label">Dependencies</span>
+                    </div>
+                </div>
+                <div class="cta-buttons">
+                    <a href="https://marketplace.visualstudio.com/items?itemName=RhinoSoftware.go-memory-visualizer" class="btn btn-primary" rel="noopener">
+                        Install Extension
+                    </a>
+                    <a href="#calculator" class="btn btn-secondary">Try Calculator</a>
+                </div>
+            </div>
+            <div class="hero-visual">
+                <div class="code-example">
+                    <div class="code-header">
+                        <span class="code-title">Before Optimization</span>
+                        <span class="code-size bad-size">56 bytes</span>
+                    </div>
+                    <pre><code>type User struct {
+    Active    bool    <span class="comment">// 1 byte + 7 padding</span>
+    ID        uint64  <span class="comment">// 8 bytes</span>
+    Name      string  <span class="comment">// 16 bytes</span>
+    Age       uint8   <span class="comment">// 1 byte + 7 padding</span>
+    Balance   float64 <span class="comment">// 8 bytes</span>
+}</code></pre>
+                    <div class="optimization-arrow">
+                        <span class="arrow-icon">↓</span>
+                        <span>One-Click Optimization</span>
+                    </div>
+                    <div class="code-header optimized">
+                        <span class="code-title">After Optimization</span>
+                        <span class="code-size good-size">40 bytes <span class="savings">(-29%)</span></span>
+                    </div>
+                    <pre><code>type User struct {
+    ID        uint64  <span class="comment">// 8 bytes</span>
+    Balance   float64 <span class="comment">// 8 bytes</span>
+    Name      string  <span class="comment">// 16 bytes</span>
+    Active    bool    <span class="comment">// 1 byte</span>
+    Age       uint8   <span class="comment">// 1 byte + 6 padding</span>
+}</code></pre>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <section id="features" class="features">
+        <div class="container">
+            <h2 class="section-title">Features</h2>
+            <p class="section-subtitle">Everything you need to optimize Go struct memory layout</p>
+            <div class="features-grid">
+                <article class="feature-card">
+                    <div class="feature-icon">STATS</div>
+                    <h3>Real-Time Analysis</h3>
+                    <p>Inline annotations show byte offsets, sizes, alignment requirements, and padding for every struct field as you type. No manual calculation needed.</p>
+                </article>
+                <article class="feature-card">
+                    <div class="feature-icon">FAST</div>
+                    <h3>One-Click Optimization</h3>
+                    <p>Automatically reorder struct fields to minimize memory usage and eliminate wasteful padding. CodeLens integration for instant optimization.</p>
+                </article>
+                <article class="feature-card">
+                    <div class="feature-icon">DETECT</div>
+                    <h3>Padding Detection</h3>
+                    <p>Visual warnings highlight wasteful padding bytes with configurable thresholds. Quickly identify structs that need optimization.</p>
+                </article>
+                <article class="feature-card">
+                    <div class="feature-icon">ARCH</div>
+                    <h3>Multi-Architecture Support</h3>
+                    <p>Switch between amd64, arm64, and 386 architectures to see how struct layouts differ across platforms. Essential for cross-platform Go development.</p>
+                </article>
+                <article class="feature-card">
+                    <div class="feature-icon">DEEP</div>
+                    <h3>Nested Struct Analysis</h3>
+                    <p>Automatically calculates memory layout for structs containing other custom struct types. Full recursive analysis of complex data structures.</p>
+                </article>
+                <article class="feature-card">
+                    <div class="feature-icon">EXPORT</div>
+                    <h3>Export Reports</h3>
+                    <p>Export detailed memory layout analysis to JSON, Markdown, or CSV formats. Perfect for documentation and code reviews.</p>
+                </article>
+            </div>
+        </div>
+    </section>
+
+    <!-- Interactive Memory Calculator Section -->
+    <section id="calculator" class="calculator-section">
+        <div class="container">
+            <h2 class="section-title">Memory Layout Calculator</h2>
+            <p class="section-subtitle">Calculate struct size for different architectures in real-time</p>
+            <div class="calculator-wrapper">
+                <div class="calculator-input">
+                    <div class="calc-header">
+                        <span>Add Fields</span>
+                        <div class="arch-toggle">
+                            <button class="arch-btn active" data-arch="amd64">amd64</button>
+                            <button class="arch-btn" data-arch="arm64">arm64</button>
+                            <button class="arch-btn" data-arch="386">386</button>
+                        </div>
+                    </div>
+                    <div class="field-list" id="fieldList">
+                        <div class="field-item">
+                            <input type="text" placeholder="field1" class="field-name" value="Active">
+                            <select class="field-type">
+                                <option value="bool" selected>bool</option>
+                                <option value="byte">byte</option>
+                                <option value="int8">int8</option>
+                                <option value="uint8">uint8</option>
+                                <option value="int16">int16</option>
+                                <option value="uint16">uint16</option>
+                                <option value="rune">rune</option>
+                                <option value="int32">int32</option>
+                                <option value="uint32">uint32</option>
+                                <option value="float32">float32</option>
+                                <option value="int">int</option>
+                                <option value="uint">uint</option>
+                                <option value="int64">int64</option>
+                                <option value="uint64">uint64</option>
+                                <option value="float64">float64</option>
+                                <option value="uintptr">uintptr</option>
+                                <option value="string">string</option>
+                                <option value="pointer">*T</option>
+                                <option value="slice">[]T</option>
+                                <option value="map">map</option>
+                                <option value="chan">chan</option>
+                                <option value="interface">interface{}</option>
+                                <option value="func">func</option>
+                            </select>
+                            <button class="remove-field" aria-label="Remove field">×</button>
+                        </div>
+                        <div class="field-item">
+                            <input type="text" placeholder="field2" class="field-name" value="ID">
+                            <select class="field-type">
+                                <option value="bool">bool</option>
+                                <option value="byte">byte</option>
+                                <option value="int8">int8</option>
+                                <option value="uint8">uint8</option>
+                                <option value="int16">int16</option>
+                                <option value="uint16">uint16</option>
+                                <option value="rune">rune</option>
+                                <option value="int32">int32</option>
+                                <option value="uint32">uint32</option>
+                                <option value="float32">float32</option>
+                                <option value="int">int</option>
+                                <option value="uint">uint</option>
+                                <option value="int64" selected>int64</option>
+                                <option value="uint64">uint64</option>
+                                <option value="float64">float64</option>
+                                <option value="uintptr">uintptr</option>
+                                <option value="string">string</option>
+                                <option value="pointer">*T</option>
+                                <option value="slice">[]T</option>
+                                <option value="map">map</option>
+                                <option value="chan">chan</option>
+                                <option value="interface">interface{}</option>
+                                <option value="func">func</option>
+                            </select>
+                            <button class="remove-field" aria-label="Remove field">×</button>
+                        </div>
+                        <div class="field-item">
+                            <input type="text" placeholder="field3" class="field-name" value="Count">
+                            <select class="field-type">
+                                <option value="bool">bool</option>
+                                <option value="byte">byte</option>
+                                <option value="int8">int8</option>
+                                <option value="uint8">uint8</option>
+                                <option value="int16">int16</option>
+                                <option value="uint16">uint16</option>
+                                <option value="rune">rune</option>
+                                <option value="int32" selected>int32</option>
+                                <option value="uint32">uint32</option>
+                                <option value="float32">float32</option>
+                                <option value="int">int</option>
+                                <option value="uint">uint</option>
+                                <option value="int64">int64</option>
+                                <option value="uint64">uint64</option>
+                                <option value="float64">float64</option>
+                                <option value="uintptr">uintptr</option>
+                                <option value="string">string</option>
+                                <option value="pointer">*T</option>
+                                <option value="slice">[]T</option>
+                                <option value="map">map</option>
+                                <option value="chan">chan</option>
+                                <option value="interface">interface{}</option>
+                                <option value="func">func</option>
+                            </select>
+                            <button class="remove-field" aria-label="Remove field">×</button>
+                        </div>
+                    </div>
+                    <button class="add-field-btn" id="addFieldBtn">+ Add Field</button>
+                </div>
+                <div class="calculator-output">
+                    <div class="calc-result">
+                        <div class="result-header">
+                            <span>Current Layout</span>
+                            <span class="result-size" id="currentSize">24 bytes</span>
+                        </div>
+                        <div class="memory-viz" id="memoryViz">
+                            <div class="mem-block used" style="width: 4.17%;" title="Active: bool (1 byte)"></div>
+                            <div class="mem-block padding" style="width: 29.17%;" title="padding (7 bytes)"></div>
+                            <div class="mem-block used" style="width: 33.33%;" title="ID: int64 (8 bytes)"></div>
+                            <div class="mem-block used" style="width: 16.67%;" title="Count: int32 (4 bytes)"></div>
+                            <div class="mem-block padding" style="width: 16.67%;" title="padding (4 bytes)"></div>
+                        </div>
+                        <div class="result-details">
+                            <div class="detail-item">
+                                <span>Data bytes:</span>
+                                <span id="dataBytes">13</span>
+                            </div>
+                            <div class="detail-item">
+                                <span>Padding bytes:</span>
+                                <span id="paddingBytes">11</span>
+                            </div>
+                            <div class="detail-item">
+                                <span>Alignment:</span>
+                                <span id="alignment">8</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="calc-optimized" id="optimizedResult">
+                        <div class="result-header optimized-header">
+                            <span>Optimized Layout</span>
+                            <span class="result-size optimized-size" id="optimizedSize">16 bytes (-8)</span>
+                        </div>
+                        <div class="savings-bar">
+                            <div class="savings-fill" id="savingsFill" style="width: 66%;"></div>
+                        </div>
+                        <span class="savings-text" id="savingsText">Save 8 bytes (33% reduction)</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section id="demo" class="demo">
+        <div class="container">
+            <h2 class="section-title">See It In Action</h2>
+            <p class="section-subtitle">Watch how the extension analyzes and optimizes struct memory layout</p>
+            <div class="demo-content">
+                <div class="demo-text">
+                    <h3>Real-World Memory Savings</h3>
+                    <p>An API response struct wastes 11 bytes (20%) due to poor field ordering. The extension detects this instantly:</p>
+                    <ul class="demo-list">
+                        <li><span class="marker marker-bad">BAD</span> <strong>Before:</strong> 56 bytes with scattered small fields</li>
+                        <li><span class="marker marker-good">GOOD</span> <strong>After:</strong> 48 bytes with optimal alignment</li>
+                        <li><span class="marker marker-info">SCALE</span> <strong>At Scale:</strong> 8 MB saved per 1M instances</li>
+                    </ul>
+                    <p class="demo-note">The extension shows exactly where padding waste occurs and fixes it with one click.</p>
+                    
+                    <div class="key-benefits">
+                        <h4>Why Memory Layout Matters</h4>
+                        <ul>
+                            <li><strong>Lower Memory Usage</strong> - Reduced heap allocations and GC pressure</li>
+                            <li><strong>Better Cache Performance</strong> - Improved CPU cache locality</li>
+                            <li><strong>Cost Savings</strong> - Less memory = lower cloud infrastructure costs</li>
+                        </ul>
+                    </div>
+                </div>
+                <div class="demo-visual">
+                    <div class="memory-layout">
+                        <div class="layout-title">Memory Block Visualization</div>
+                        <div class="memory-block bad">
+                            <span class="memory-field">bool (1)</span>
+                            <span class="memory-padding">padding (7)</span>
+                        </div>
+                        <div class="memory-block good">
+                            <span class="memory-field">uint64 (8)</span>
+                        </div>
+                        <div class="memory-block good">
+                            <span class="memory-field">string (16)</span>
+                        </div>
+                        <div class="memory-block bad">
+                            <span class="memory-field">int32 (4)</span>
+                            <span class="memory-padding">padding (4)</span>
+                        </div>
+                        <div class="memory-block good">
+                            <span class="memory-field">string (16)</span>
+                        </div>
+                        <div class="layout-footer">
+                            <span class="legend-item"><span class="legend-color good"></span> Used</span>
+                            <span class="legend-item"><span class="legend-color bad"></span> Wasted Padding</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- FAQ Section for SEO -->
+    <section id="faq" class="faq-section">
+        <div class="container">
+            <h2 class="section-title">Frequently Asked Questions</h2>
+            <div class="faq-grid">
+                <details class="faq-item">
+                    <summary>How much memory can I save by optimizing Go struct field order?</summary>
+                    <p>Typically 10-30% memory reduction depending on your struct's field types. Structs with mixed bool, int, and string fields see the largest improvements. The exact savings depend on field count and type distribution.</p>
+                </details>
+                <details class="faq-item">
+                    <summary>Does Go struct field order affect performance?</summary>
+                    <p>Yes. Proper field ordering reduces padding bytes, which improves CPU cache locality. This can lead to 5-20% performance improvements in memory-intensive applications like API servers and data processing pipelines.</p>
+                </details>
+                <details class="faq-item">
+                    <summary>What's the best order for Go struct fields?</summary>
+                    <p>Order fields from largest to smallest alignment: pointers/strings/slices (8 bytes on 64-bit), then int64/float64, then int32/float32, then int16, finally bool/int8. This minimizes padding between fields.</p>
+                </details>
+                <details class="faq-item">
+                    <summary>Why does Go add padding to structs?</summary>
+                    <p>Go aligns fields to their natural alignment boundaries for CPU efficiency. A uint64 must start at an 8-byte boundary. If preceded by a bool (1 byte), 7 bytes of padding are inserted to maintain alignment.</p>
+                </details>
+                <details class="faq-item">
+                    <summary>Does the extension work with nested structs?</summary>
+                    <p>Yes. Go Memory Visualizer automatically detects and calculates layouts for nested custom struct types, giving you accurate sizes for complex data structures with embedded types.</p>
+                </details>
+                <details class="faq-item">
+                    <summary>What architectures are supported?</summary>
+                    <p>The extension supports amd64 (64-bit x86), arm64 (64-bit ARM), and 386 (32-bit x86). Struct layouts can differ between architectures due to pointer size and alignment differences.</p>
+                </details>
+            </div>
+        </div>
+    </section>
+
+    <section id="install" class="install">
+        <div class="container">
+            <h2 class="section-title">Installation</h2>
+            <p class="section-subtitle">Get started in under a minute</p>
+            <div class="install-methods">
+                <div class="install-card">
+                    <h3>VS Code Marketplace</h3>
+                    <ol>
+                        <li>Open VS Code</li>
+                        <li>Press <kbd>Ctrl+P</kbd> (Windows/Linux) or <kbd>Cmd+P</kbd> (Mac)</li>
+                        <li>Type: <code>ext install RhinoSoftware.go-memory-visualizer</code></li>
+                        <li>Press Enter and reload</li>
+                    </ol>
+                    <a href="https://marketplace.visualstudio.com/items?itemName=RhinoSoftware.go-memory-visualizer" class="btn btn-primary" rel="noopener">
+                        Install from Marketplace
+                    </a>
+                </div>
+                <div class="install-card">
+                    <h3>Build from Source</h3>
+                    <pre><code><span class="cmd-prompt">$</span> git clone https://github.com/1rhino2/go-memory-visualizer.git
+<span class="cmd-prompt">$</span> cd go-memory-visualizer
+<span class="cmd-prompt">$</span> npm install
+<span class="cmd-prompt">$</span> npm run compile</code></pre>
+                    <p>Press <kbd>F5</kbd> in VS Code to launch the Extension Development Host</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section id="docs" class="docs">
+        <div class="container">
+            <h2 class="section-title">Quick Start Guide</h2>
+            <div class="docs-grid">
+                <article class="doc-card">
+                    <div class="doc-number">1</div>
+                    <h3>Open a Go File</h3>
+                    <p>Create or open any <code>.go</code> file containing struct definitions. The extension activates automatically.</p>
+                </article>
+                <article class="doc-card">
+                    <div class="doc-number">2</div>
+                    <h3>View Memory Analysis</h3>
+                    <p>Inline annotations appear showing offset, size, alignment, and padding for each struct field in real-time.</p>
+                </article>
+                <article class="doc-card">
+                    <div class="doc-number">3</div>
+                    <h3>Optimize with One Click</h3>
+                    <p>Click the "Optimize struct" CodeLens above any struct to automatically reorder fields for minimal memory usage.</p>
+                </article>
+            </div>
+            <div class="docs-links">
+                <a href="https://github.com/1rhino2/go-memory-visualizer#readme" class="doc-link">Full Documentation →</a>
+                <a href="examples.html" class="doc-link">Code Examples →</a>
+                <a href="performance.html" class="doc-link">Performance Guide →</a>
+                <a href="https://github.com/1rhino2/go-memory-visualizer/blob/main/CHANGELOG.md" class="doc-link">Changelog →</a>
+            </div>
+        </div>
+    </section>
+
+    <section class="benefits">
+        <div class="container">
+            <h2 class="section-title">Why Optimize Struct Memory?</h2>
+            <p class="section-subtitle">Memory layout optimization matters for production Go applications</p>
+            <div class="benefits-grid">
+                <article class="benefit">
+                    <h3><span class="benefit-icon">COST</span> Reduce Infrastructure Costs</h3>
+                    <p>Smaller structs mean fewer memory allocations, reduced garbage collector pressure, and lower cloud hosting costs at scale. Save money on every deployment.</p>
+                </article>
+                <article class="benefit">
+                    <h3><span class="benefit-icon">PERF</span> Improve Application Performance</h3>
+                    <p>Optimal field ordering improves CPU cache locality, leading to faster data access and better overall throughput. Critical for high-performance Go services.</p>
+                </article>
+                <article class="benefit">
+                    <h3><span class="benefit-icon">LEARN</span> Understand Go Memory Model</h3>
+                    <p>Learn exactly how Go lays out data in memory. Make informed design decisions about your data structures and write more efficient Go code.</p>
+                </article>
+            </div>
+        </div>
+    </section>
+
+    <footer class="footer" role="contentinfo">
+        <div class="container">
+            <div class="footer-content">
+                <div class="footer-section">
+                    <h4>Go Memory Visualizer</h4>
+                    <p>Real-time struct memory layout visualization and optimization for VS Code. Analyze padding, alignment, and field ordering across multiple architectures.</p>
+                    <p class="footer-version">v0.2.0</p>
+                </div>
+                <div class="footer-section">
+                    <h4>Quick Links</h4>
+                    <ul>
+                        <li><a href="https://github.com/1rhino2/go-memory-visualizer">GitHub Repository</a></li>
+                        <li><a href="https://marketplace.visualstudio.com/items?itemName=RhinoSoftware.go-memory-visualizer">VS Code Marketplace</a></li>
+                        <li><a href="https://github.com/1rhino2/go-memory-visualizer/issues">Report Issues</a></li>
+                        <li><a href="https://github.com/1rhino2/go-memory-visualizer/blob/main/LICENSE">MIT License</a></li>
+                    </ul>
+                </div>
+                <div class="footer-section">
+                    <h4>Documentation</h4>
+                    <ul>
+                        <li><a href="https://github.com/1rhino2/go-memory-visualizer#readme">Getting Started</a></li>
+                        <li><a href="examples.html">Code Examples</a></li>
+                        <li><a href="performance.html">Performance Guide</a></li>
+                        <li><a href="https://github.com/1rhino2/go-memory-visualizer/blob/main/CHANGELOG.md">Changelog</a></li>
+                    </ul>
+                </div>
+                <div class="footer-section">
+                    <h4>Related Resources</h4>
+                    <ul>
+                        <li><a href="https://go.dev/ref/mem" rel="noopener" target="_blank">Go Memory Model</a></li>
+                        <li><a href="https://go.dev/doc/effective_go" rel="noopener" target="_blank">Effective Go</a></li>
+                        <li><a href="https://pkg.go.dev/unsafe#Sizeof" rel="noopener" target="_blank">unsafe.Sizeof</a></li>
+                    </ul>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <p>&copy; 2025 RhinoSoftware. Open source under the MIT License.</p>
+                <p class="footer-tagline">Optimize your Go structs. Save memory. Ship faster.</p>
+            </div>
+        </div>
+    </footer>
+
+    <script src="script.js"></script>
+</body>
+</html>

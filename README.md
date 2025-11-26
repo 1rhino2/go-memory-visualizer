@@ -485,6 +485,7 @@ MIT License - see [LICENSE](LICENSE) file for details.
 </p>
 
 <p align="center">
+  <a href="https://1rhino2.github.io/go-memory-visualizer">Website</a> •
   <a href="https://github.com/1rhino2/go-memory-visualizer">GitHub</a> •
   <a href="https://marketplace.visualstudio.com/items?itemName=RhinoSoftware.go-memory-visualizer">Marketplace</a> •
   <a href="DEVELOPMENT.md">Docs</a>

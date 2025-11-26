@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://1rhino2.github.io/go-memory-visualizer/sitemap.xml
