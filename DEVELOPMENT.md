@@ -24,10 +24,11 @@ node out/test/optimizer.test.js
 ### Option 1: Debug in VS Code
 1. Open this folder in VS Code
 2. Press F5 to launch Extension Development Host
-3. Open a Go file (try `examples/structs.go`)
+3. Open a Go file (try `examples/structs.go`, `examples/nested-structs.go`, or `examples/embedded-fields.go`)
 4. See inline memory annotations above struct fields
 5. Hover over fields for detailed info
 6. Click CodeLens "Optimize Layout" button above structs
+7. Use `Go: Export Memory Layout Report` to export struct analysis
 
 ### Option 2: Package and Install
 ```bash
@@ -62,6 +63,8 @@ code --install-extension go-memory-visualizer-0.1.0.vsix
   - Recalculates layouts for selected architecture
 - `Ctrl+Shift+P` → "Go: Optimize Struct Memory Layout"
   - Optimizes struct under cursor
+- `Ctrl+Shift+P` → "Go: Export Memory Layout Report"
+  - **NEW in v0.2**: Export to JSON/Markdown/CSV
 
 ### 5. Architecture Support
 - Test with different architectures
@@ -140,11 +143,36 @@ src/
 4. Package: `vsce package`
 5. Publish: `vsce publish`
 
+## v0.2.0 Features
+
+### Nested Struct Support
+
+The memory calculator now handles nested custom structs:
+
+- Struct registry stores all struct definitions
+- Two-pass parsing: register definitions, then calculate layouts
+- Recursive size resolution for nested structs
+
+### Embedded Field Handling
+
+Parser detects embedded fields (no explicit name):
+
+- Matches patterns like `TypeName` or `*TypeName`
+- Handles promoted fields correctly
+- Works with embedded interfaces
+
+### Export Functionality
+
+New command exports memory layouts in multiple formats:
+
+- JSON: Machine-readable with full details
+- Markdown: Human-readable documentation
+- CSV: Spreadsheet-compatible data
+
 ## Future Enhancements
 
 - [ ] Cache line boundary visualization
-- [ ] Support for embedded structs
+- [ ] Union type support
 - [ ] Comparison view (before/after optimization)
-- [ ] Export memory layout reports
 - [ ] Integration with Go's `unsafe.Sizeof`
 - [ ] Benchmark impact visualization
