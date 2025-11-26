@@ -9,6 +9,7 @@ A VS Code extension for real-time visualization and optimization of Go struct me
 [![Go](https://img.shields.io/badge/Go-00ADD8?logo=go&logoColor=white)](https://go.dev)
 [![VS Code](https://img.shields.io/badge/VS_Code-007ACC?logo=visualstudiocode&logoColor=white)](https://code.visualstudio.com)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[WEBSITE](https://1rhino2.github.io/go-memory-visualizer/)
 
 ## What It Does
 
