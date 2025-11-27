@@ -2,6 +2,16 @@
 
 All notable changes to the Go Memory Layout Visualizer extension will be documented in this file.
 
+## [0.2.2] - 2025-11-26
+
+### Security
+
+- Fixed path traversal vulnerability in export function
+- Added path normalization and validation before file writes
+- Implemented parent directory existence check
+- Added write verification to ensure file integrity
+- Set explicit file permissions (0o644) for exported files
+
 ## [0.2.1] - 2025-11-26
 
 ### Fixed

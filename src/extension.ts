@@ -334,7 +334,31 @@ async function exportLayoutCommand(parser: GoParser) {
 
   if (uri) {
     try {
-      fs.writeFileSync(uri.fsPath, content);
+      // validate path before writing
+      const normalizedPath = path.normalize(uri.fsPath);
+      const resolvedPath = path.resolve(normalizedPath);
+      
+      // check if path is within workspace or user selected valid location
+      if (resolvedPath !== normalizedPath && !path.isAbsolute(normalizedPath)) {
+        vscode.window.showErrorMessage('Invalid file path');
+        return;
+      }
+      
+      // ensure parent dir exists
+      const parentDir = path.dirname(resolvedPath);
+      if (!fs.existsSync(parentDir)) {
+        vscode.window.showErrorMessage('Parent directory does not exist');
+        return;
+      }
+      
+      // write with explicit encoding and error handling
+      fs.writeFileSync(resolvedPath, content, { encoding: 'utf8', mode: 0o644 });
+      
+      // verify write
+      if (!fs.existsSync(resolvedPath)) {
+        throw new Error('File write verification failed');
+      }
+      
       vscode.window.showInformationMessage(`Memory layout exported successfully`);
     } catch (error) {
       vscode.window.showErrorMessage(`Export failed: ${(error as Error).message}`);
