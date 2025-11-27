@@ -1,4 +1,4 @@
-import { StructInfo, FieldInfo, Architecture } from './types';
+import { StructInfo, FieldInfo, Architecture, CacheLineInfo, CACHE_LINE_SIZE } from './types';
 import { MemoryCalculator } from './memoryCalculator';
 
 export class GoParser {
@@ -149,13 +149,18 @@ export class GoParser {
         totalPadding: 0,
         lineNumber: startLine,
         endLineNumber: endLine,
-        alignment: 1
+        alignment: 1,
+        cacheLines: [],
+        cacheLinesCrossed: 0,
+        hotFields: []
       };
     }
 
     const layout = this.calculator.calculateStructSize(
       fields.map(f => ({ typeName: f.typeName }))
     );
+
+    const hotFields: string[] = [];
 
     const fieldInfos: FieldInfo[] = fields.map((field, idx) => {
       const typeInfo = this.calculator.getTypeInfo(field.typeName);
@@ -164,6 +169,15 @@ export class GoParser {
         ? layout.fieldOffsets[idx + 1] - (offset + typeInfo.size)
         : layout.paddings[fields.length]; // Final padding
 
+      // Calculate cache line info for this field
+      const cacheLineStart = Math.floor(offset / CACHE_LINE_SIZE);
+      const cacheLineEnd = Math.floor((offset + typeInfo.size - 1) / CACHE_LINE_SIZE);
+      const crossesCacheLine = cacheLineStart !== cacheLineEnd;
+
+      if (crossesCacheLine) {
+        hotFields.push(field.name);
+      }
+
       return {
         name: field.name,
         typeName: field.typeName,
@@ -171,11 +185,18 @@ export class GoParser {
         size: typeInfo.size,
         alignment: typeInfo.alignment,
         lineNumber: field.lineNumber,
-        paddingAfter
+        paddingAfter,
+        cacheLineStart,
+        cacheLineEnd,
+        crossesCacheLine
       };
     });
 
     const totalPadding = layout.paddings.reduce((sum, p) => sum + p, 0);
+
+    // Calculate cache line breakdown
+    const cacheLines = this.calculateCacheLines(fieldInfos, layout.size);
+    const cacheLinesCrossed = Math.ceil(layout.size / CACHE_LINE_SIZE);
 
     return {
       name,
@@ -184,7 +205,49 @@ export class GoParser {
       totalPadding,
       lineNumber: startLine,
       endLineNumber: endLine,
-      alignment: layout.alignment
+      alignment: layout.alignment,
+      cacheLines,
+      cacheLinesCrossed,
+      hotFields
     };
+  }
+
+  private calculateCacheLines(fields: FieldInfo[], totalSize: number): CacheLineInfo[] {
+    const numLines = Math.ceil(totalSize / CACHE_LINE_SIZE);
+    const cacheLines: CacheLineInfo[] = [];
+
+    for (let lineNum = 0; lineNum < numLines; lineNum++) {
+      const startOffset = lineNum * CACHE_LINE_SIZE;
+      const endOffset = Math.min(startOffset + CACHE_LINE_SIZE - 1, totalSize - 1);
+      
+      const fieldsInLine: string[] = [];
+      let bytesUsed = 0;
+
+      for (const field of fields) {
+        const fieldEnd = field.offset + field.size - 1;
+        // Check if field overlaps with this cache line
+        if (field.offset <= endOffset && fieldEnd >= startOffset) {
+          fieldsInLine.push(field.name);
+          // Calculate bytes of this field in this cache line
+          const overlapStart = Math.max(field.offset, startOffset);
+          const overlapEnd = Math.min(fieldEnd, endOffset);
+          bytesUsed += overlapEnd - overlapStart + 1;
+        }
+      }
+
+      const lineSize = endOffset - startOffset + 1;
+      const bytesPadding = lineSize - bytesUsed;
+
+      cacheLines.push({
+        lineNumber: lineNum,
+        startOffset,
+        endOffset,
+        fields: fieldsInLine,
+        bytesUsed,
+        bytesPadding
+      });
+    }
+
+    return cacheLines;
   }
 }
