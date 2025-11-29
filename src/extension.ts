@@ -63,6 +63,12 @@ export function activate(context: vscode.ExtensionContext) {
     })
   );
 
+  context.subscriptions.push(
+    vscode.commands.registerCommand('goMemoryVisualizer.analyzeWorkspace', () => {
+      analyzeWorkspaceCommand(parser, optimizer);
+    })
+  );
+
   // Register providers
   context.subscriptions.push(
     vscode.languages.registerHoverProvider('go', new MemoryLayoutHoverProvider(parser))
@@ -452,6 +458,179 @@ function generateCSVReport(data: ExportFormat): string {
   }
 
   return csv;
+}
+
+interface WorkspaceAnalysisResult {
+  file: string;
+  structName: string;
+  totalSize: number;
+  totalPadding: number;
+  paddingPercentage: number;
+  bytesSaveable: number;
+  cacheLinesCrossed: number;
+  hotFields: string[];
+}
+
+async function analyzeWorkspaceCommand(parser: GoParser, optimizer: StructOptimizer) {
+  const workspaceFolders = vscode.workspace.workspaceFolders;
+  if (!workspaceFolders) {
+    vscode.window.showErrorMessage('No workspace folder open');
+    return;
+  }
+
+  const results: WorkspaceAnalysisResult[] = [];
+  
+  await vscode.window.withProgress({
+    location: vscode.ProgressLocation.Notification,
+    title: 'Analyzing Go structs in workspace...',
+    cancellable: true
+  }, async (progress, token) => {
+    const goFiles = await vscode.workspace.findFiles('**/*.go', '**/vendor/**');
+    
+    let processed = 0;
+    for (const file of goFiles) {
+      if (token.isCancellationRequested) {
+        break;
+      }
+      
+      progress.report({ 
+        increment: (100 / goFiles.length), 
+        message: `${path.basename(file.fsPath)}` 
+      });
+
+      try {
+        const content = fs.readFileSync(file.fsPath, 'utf8');
+        const structs = parser.parseStructs(content);
+        
+        for (const struct of structs) {
+          const optimization = optimizer.optimizeStruct(struct);
+          const paddingPct = struct.totalSize > 0 ? (struct.totalPadding / struct.totalSize) * 100 : 0;
+          
+          // Only include structs with issues
+          if (optimization.bytesSaved > 0 || paddingPct > 10 || struct.hotFields.length > 0) {
+            results.push({
+              file: vscode.workspace.asRelativePath(file),
+              structName: struct.name,
+              totalSize: struct.totalSize,
+              totalPadding: struct.totalPadding,
+              paddingPercentage: paddingPct,
+              bytesSaveable: optimization.bytesSaved,
+              cacheLinesCrossed: struct.cacheLinesCrossed,
+              hotFields: struct.hotFields
+            });
+          }
+        }
+      } catch (e) {
+        // Skip files that can't be read
+      }
+      
+      processed++;
+    }
+  });
+
+  if (results.length === 0) {
+    vscode.window.showInformationMessage('All structs in workspace are optimally aligned!');
+    return;
+  }
+
+  // Sort by bytes saveable (most impactful first)
+  results.sort((a, b) => b.bytesSaveable - a.bytesSaveable);
+
+  // Create report panel
+  const panel = vscode.window.createWebviewPanel(
+    'workspaceAnalysis',
+    'Workspace Memory Analysis',
+    vscode.ViewColumn.One,
+    { enableScripts: true }
+  );
+
+  const totalSaveable = results.reduce((sum, r) => sum + r.bytesSaveable, 0);
+  const totalPadding = results.reduce((sum, r) => sum + r.totalPadding, 0);
+  const structsWithCacheIssues = results.filter(r => r.hotFields.length > 0).length;
+
+  let html = `
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <style>
+          body { font-family: var(--vscode-font-family); padding: 20px; color: var(--vscode-foreground); }
+          h1, h2, h3 { color: var(--vscode-foreground); }
+          .summary { background: var(--vscode-editor-background); padding: 15px; border-radius: 5px; margin-bottom: 20px; }
+          .stat { display: inline-block; margin-right: 30px; }
+          .stat-value { font-size: 24px; font-weight: bold; color: var(--vscode-textLink-foreground); }
+          .stat-label { font-size: 12px; color: var(--vscode-descriptionForeground); }
+          table { border-collapse: collapse; width: 100%; margin-top: 20px; }
+          th, td { border: 1px solid var(--vscode-panel-border); padding: 8px; text-align: left; }
+          th { background-color: var(--vscode-editor-background); }
+          .warning { color: #ff6b6b; }
+          .saveable { color: #4caf50; font-weight: bold; }
+          tr:hover { background: var(--vscode-list-hoverBackground); }
+        </style>
+      </head>
+      <body>
+        <h1>📊 Workspace Memory Analysis</h1>
+        <p>Architecture: <strong>${currentArch}</strong></p>
+        
+        <div class="summary">
+          <div class="stat">
+            <div class="stat-value">${results.length}</div>
+            <div class="stat-label">Structs with issues</div>
+          </div>
+          <div class="stat">
+            <div class="stat-value saveable">${totalSaveable}B</div>
+            <div class="stat-label">Total bytes saveable</div>
+          </div>
+          <div class="stat">
+            <div class="stat-value">${totalPadding}B</div>
+            <div class="stat-label">Total padding</div>
+          </div>
+          <div class="stat">
+            <div class="stat-value warning">${structsWithCacheIssues}</div>
+            <div class="stat-label">Cache line issues</div>
+          </div>
+        </div>
+
+        <h2>Optimization Opportunities</h2>
+        <table>
+          <tr>
+            <th>File</th>
+            <th>Struct</th>
+            <th>Size</th>
+            <th>Padding</th>
+            <th>Saveable</th>
+            <th>Cache Lines</th>
+            <th>Hot Fields</th>
+          </tr>
+  `;
+
+  for (const r of results) {
+    const hotFieldsStr = r.hotFields.length > 0 
+      ? `<span class="warning">${r.hotFields.join(', ')}</span>` 
+      : '-';
+    const saveableStr = r.bytesSaveable > 0 
+      ? `<span class="saveable">${r.bytesSaveable}B</span>` 
+      : '-';
+    
+    html += `
+      <tr>
+        <td>${r.file}</td>
+        <td><strong>${r.structName}</strong></td>
+        <td>${r.totalSize}B</td>
+        <td>${r.totalPadding}B (${r.paddingPercentage.toFixed(1)}%)</td>
+        <td>${saveableStr}</td>
+        <td>${r.cacheLinesCrossed}</td>
+        <td>${hotFieldsStr}</td>
+      </tr>
+    `;
+  }
+
+  html += `
+        </table>
+      </body>
+    </html>
+  `;
+
+  panel.webview.html = html;
 }
 
 class MemoryLayoutHoverProvider implements vscode.HoverProvider {
