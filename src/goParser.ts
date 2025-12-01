@@ -8,6 +8,14 @@ export class GoParser {
     this.calculator = new MemoryCalculator(architecture);
   }
 
+  /**
+   * Returns the memory calculator instance for use by optimizer
+   * VULN-003: Public getter instead of private member access
+   */
+  getCalculator(): MemoryCalculator {
+    return this.calculator;
+  }
+
   setArchitecture(arch: Architecture): void {
     this.calculator.setArchitecture(arch);
   }
@@ -38,8 +46,13 @@ export class GoParser {
             continue;
           }
           
-          const fieldMatch = fieldLine.match(/^(\w+(?:\s*,\s*\w+)*)\s+(.+?)(?:\s+`.*`)?(?:\s*\/\/.*)?$/);
-          const embeddedMatch = fieldLine.match(/^(\*?\w+)(?:\s+`.*`)?(?:\s*\/\/.*)?$/);
+          // VULN-005, VULN-006: Use safer regex patterns to prevent ReDoS
+          // Strip comments and tags first to simplify regex matching
+          const cleanFieldLine = fieldLine.split('//')[0].split('`')[0].trim();
+          if (!cleanFieldLine) { i++; continue; }
+          
+          const fieldMatch = cleanFieldLine.match(/^(\w+(?:\s*,\s*\w+)*)\s+(.+)$/);
+          const embeddedMatch = cleanFieldLine.match(/^(\*?\w+)$/);
           
           if (fieldMatch) {
             const names = fieldMatch[1].split(',').map(n => n.trim());
@@ -104,8 +117,12 @@ export class GoParser {
           }
           
           // Parse field: name type or name, name2 type or just Type (embedded)
-          const fieldMatch = fieldLine.match(/^(\w+(?:\s*,\s*\w+)*)\s+(.+?)(?:\s+`.*`)?(?:\s*\/\/.*)?$/);
-          const embeddedMatch = fieldLine.match(/^(\*?\w+)(?:\s+`.*`)?(?:\s*\/\/.*)?$/);
+          // VULN-005, VULN-006: Use safer regex patterns to prevent ReDoS
+          const cleanLine = fieldLine.split('//')[0].split('`')[0].trim();
+          if (!cleanLine) { i++; continue; }
+          
+          const fieldMatch = cleanLine.match(/^(\w+(?:\s*,\s*\w+)*)\s+(.+)$/);
+          const embeddedMatch = cleanLine.match(/^(\*?\w+)$/);
           
           if (fieldMatch) {
             const names = fieldMatch[1].split(',').map(n => n.trim());
