@@ -2,6 +2,14 @@
 (function() {
     'use strict';
 
+    /**
+     * VULN-020: Escape HTML attributes to prevent XSS
+     */
+    function escapeAttr(str) {
+        if (typeof str !== 'string') return str;
+        return str.replace(/[&<>"']/g, c => `&#${c.charCodeAt(0)};`);
+    }
+
     // Type sizes for different architectures
     const TYPE_SIZES = {
         amd64: {
@@ -207,9 +215,10 @@
             memViz.innerHTML = displayLayout.map(block => {
                 const width = Math.max(0.5, (block.size / current.totalSize) * 100);
                 const cls = block.type === 'padding' ? 'padding' : 'used';
+                // VULN-020: Escape field names to prevent XSS in title attribute
                 const title = block.type === 'padding' 
                     ? `padding (${block.size} bytes)` 
-                    : `${block.name}: ${block.fieldType} (${block.size} bytes)`;
+                    : `${escapeAttr(block.name)}: ${escapeAttr(block.fieldType)} (${block.size} bytes)`;
                 return `<div class="mem-block ${cls}" style="width:${width}%" title="${title}"></div>`;
             }).join('');
         }
