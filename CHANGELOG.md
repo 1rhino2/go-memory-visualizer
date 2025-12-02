@@ -2,6 +2,32 @@
 
 All notable changes to the Go Memory Layout Visualizer extension will be documented in this file.
 
+## [0.3.0] - 2025-12-03
+
+### Added
+
+- **Cache line visualization**: Shows which cache line (64-byte) each field occupies
+- **Cache line crossing detection**: Warns when fields span multiple cache lines (performance issue)
+- **Workspace memory analyzer**: New command `Go: Analyze Workspace Memory Layout` scans all Go files for optimization opportunities
+- **Hot field detection**: Identifies fields that cross cache line boundaries (false sharing risk)
+- Cache line breakdown in memory layout view showing bytes used vs padding per line
+- New example file `cache-lines.go` demonstrating cache line issues
+
+### Enhanced
+
+- Inline annotations now show cache line number for each field (e.g., `[L0]`, `[L1]`)
+- Fields crossing cache lines highlighted with distinct warning style
+- Hover tooltips explain cache line crossing performance implications
+- Memory layout panel includes cache line breakdown table
+
+### New Command
+
+- `Go: Analyze Workspace Memory Layout` - Scans entire workspace for:
+  - Structs with excessive padding
+  - Optimization opportunities (bytes saveable)
+  - Cache line boundary issues
+  - Hot fields that may cause false sharing
+
 ## [0.2.2] - 2025-11-26
 
 ### Security
