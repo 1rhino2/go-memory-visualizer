@@ -1,6 +1,6 @@
 # Go Memory Layout Visualizer
 
-**v0.2.2 is now available!** [Download from GitHub](https://github.com/1rhino2/go-memory-visualizer/releases/tag/v0.2.2) | [Install from OpenVSX](https://open-vsx.org/extension/RhinoSoftware/go-memory-visualizer) | [Visit Website](https://1rhino2.github.io/go-memory-visualizer/)
+**v0.3.0 is now available!** [Download from GitHub](https://github.com/1rhino2/go-memory-visualizer/releases/tag/v0.3.0) | [Install from OpenVSX](https://open-vsx.org/extension/RhinoSoftware/go-memory-visualizer) | [Visit Website](https://1rhino2.github.io/go-memory-visualizer/)
 
 
 
@@ -481,11 +481,18 @@ MIT License - see [LICENSE](LICENSE) file for details.
 - [x] Added path validation and normalization
 - [x] Implemented write verification and explicit file permissions
 
-### v0.3.0 (Planned)
+### v0.3.0 - Released 2025-12-03
+
+- [x] **Cache line visualization**: Shows which 64-byte cache line each field occupies
+- [x] **Cache line crossing detection**: Warns when fields span multiple cache lines
+- [x] **Workspace analyzer**: New command scans all Go files for optimization opportunities
+- [x] Hot field detection for false sharing risks
+
+### v0.4.0 (Planned)
 
 - [ ] Union type support
 - [ ] Bitfield visualization
-- [ ] Memory alignment profiler
+- [ ] Visual memory map (graphical layout)
 
 ### v1.0.0 (Future)
 
