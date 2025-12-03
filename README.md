@@ -31,8 +31,6 @@ This vscode-go extension shows you exactly how Go lays out structs in memory - b
 - Byte offsets so you know exactly where fields live
 - Size calculations and alignment requirements
 - Padding detection with visual warnings
-- **NEW in v0.2**: Nested struct support with recursive size calculation
-- **NEW in v0.2**: Embedded field detection and analysis
 
 ### Visual Feedback
 
