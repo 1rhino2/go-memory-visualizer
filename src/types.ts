@@ -1,5 +1,8 @@
 export type Architecture = 'amd64' | 'arm64' | '386';
 
+/**
+ * Cache line size in bytes (64 bytes on most modern CPUs)
+ */
 export const CACHE_LINE_SIZE = 64; // bytes - standard CPU cache line
 
 export interface CacheLineInfo {
