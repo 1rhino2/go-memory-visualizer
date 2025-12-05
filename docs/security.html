@@ -331,6 +331,126 @@
         .popup-close:active {
             transform: scale(0.95);
         }
+
+        /* Mobile Responsive Styles */
+        @media (max-width: 768px) {
+            .security-hero {
+                padding: 60px 15px 40px;
+            }
+            .security-hero h1 {
+                font-size: 1.75rem;
+            }
+            .security-hero .subtitle {
+                font-size: 1rem;
+            }
+            .advisory-container {
+                padding: 20px 15px;
+            }
+            .section-heading {
+                font-size: 1.25rem;
+                margin: 30px 0 15px 0;
+            }
+            
+            /* Table scroll wrapper for mobile */
+            .table-wrapper {
+                overflow-x: auto;
+                -webkit-overflow-scrolling: touch;
+                margin: 20px -15px;
+                padding: 0 15px;
+            }
+            .vuln-table {
+                min-width: 600px;
+                font-size: 0.85rem;
+            }
+            .vuln-table th,
+            .vuln-table td {
+                padding: 10px 8px;
+            }
+            
+            /* Timeline mobile */
+            .timeline {
+                padding-left: 20px;
+            }
+            .timeline-item {
+                padding-left: 15px;
+            }
+            .timeline-item::before {
+                left: -24px;
+                width: 8px;
+                height: 8px;
+            }
+            .timeline-date {
+                font-size: 0.9rem;
+            }
+            .timeline-content {
+                font-size: 0.9rem;
+            }
+            
+            /* Recommendation cards mobile */
+            .recommendation-card {
+                padding: 15px;
+            }
+            .recommendation-card pre {
+                font-size: 0.8rem;
+                padding: 10px !important;
+            }
+            
+            /* Popup mobile */
+            .popup-box {
+                margin: 20px;
+                padding: 30px 25px;
+                max-width: calc(100% - 40px);
+            }
+            .popup-box h2 {
+                font-size: 1.5rem;
+            }
+            .popup-box p {
+                font-size: 0.95rem;
+            }
+            
+            /* Contact section mobile */
+            .contact-section {
+                padding: 20px 15px;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .security-hero h1 {
+                font-size: 1.5rem;
+            }
+            .vuln-table {
+                font-size: 0.75rem;
+            }
+            .severity-critical,
+            .severity-high,
+            .severity-medium,
+            .severity-low {
+                font-size: 0.7rem;
+                padding: 3px 5px;
+            }
+            .body-text {
+                font-size: 0.9rem;
+            }
+            .popup-box {
+                padding: 25px 20px;
+            }
+            .popup-close {
+                padding: 10px 25px;
+                font-size: 0.9rem;
+            }
+        }
+
+        /* Touch-friendly tap targets */
+        @media (pointer: coarse) {
+            .popup-close {
+                min-height: 44px;
+                min-width: 44px;
+            }
+            .contact-section a {
+                display: inline-block;
+                padding: 8px 0;
+            }
+        }
     </style>
 </head>
 <body>
@@ -383,6 +503,7 @@
 
         <h2 class="section-heading">Vulnerability Details</h2>
         
+        <div class="table-wrapper">
         <table class="vuln-table">
             <thead>
                 <tr>
@@ -522,6 +643,7 @@
                 </tr>
             </tbody>
         </table>
+        </div>
 
         <h2 class="section-heading">Remediation Timeline</h2>
         
