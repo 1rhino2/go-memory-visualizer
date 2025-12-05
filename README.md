@@ -1,8 +1,8 @@
 # Go Memory Layout Visualizer
 
-**v0.3.0 is now available!** [Download from GitHub](https://github.com/1rhino2/go-memory-visualizer/releases/tag/v0.3.0) | [Install from OpenVSX](https://open-vsx.org/extension/RhinoSoftware/go-memory-visualizer) | [Visit Website](https://1rhino2.github.io/go-memory-visualizer/)
+**v0.3.1 is now available!** [Download from GitHub](https://github.com/1rhino2/go-memory-visualizer/releases/tag/v0.3.1) | [Install from OpenVSX](https://open-vsx.org/extension/RhinoSoftware/go-memory-visualizer) | [Visit Website](https://1rhino2.github.io/go-memory-visualizer/)
 
-Note: I was pretty late with releases because I forgot about openvsx, everything is released and updated accordingly. Maybe I should use a workflow, I dunno. Enjoy.
+**Security Update**: v0.3.1 includes fixes for 18 security vulnerabilities. See the [Security Advisory](https://1rhino2.github.io/go-memory-visualizer/security.html) for details.
 
 
 
@@ -487,6 +487,15 @@ MIT License - see [LICENSE](LICENSE) file for details.
 - [x] **Cache line crossing detection**: Warns when fields span multiple cache lines
 - [x] **Workspace analyzer**: New command scans all Go files for optimization opportunities
 - [x] Hot field detection for false sharing risks
+
+### v0.3.1 - Released 2025-12-05
+
+- [x] **Security update**: Fixed 18 security vulnerabilities (3 critical, 4 high, 10 medium, 1 low)
+- [x] XSS prevention with HTML/Markdown escaping
+- [x] Content Security Policy for webviews
+- [x] ReDoS protection with simplified regex patterns
+- [x] Resource limits for workspace analyzer
+- [x] See [Security Advisory](https://1rhino2.github.io/go-memory-visualizer/security.html)
 
 ### v0.4.0 (Planned)
 

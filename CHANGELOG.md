@@ -2,6 +2,37 @@
 
 All notable changes to the Go Memory Layout Visualizer extension will be documented in this file.
 
+## [0.3.1] - 2025-12-05
+
+### Security
+
+- **Critical**: Fixed DOM-based XSS vulnerabilities in Workspace Analysis and Memory Layout webviews
+- **Critical**: Fixed private member access bypass via bracket notation
+- **High**: Fixed CSV formula injection in exported reports
+- **High**: Fixed ReDoS vulnerabilities in struct field and embedded field regex patterns
+- **High**: Converted synchronous file I/O to async to prevent extension host blocking
+- **High**: Added resource limits to workspace analyzer (1,000 files max, 1MB per file, 500 results)
+- **Medium**: Added Content Security Policy headers to all webview panels
+- **Medium**: Fixed information disclosure in error messages
+- **Medium**: Set secure file permissions (0o600) on exported files
+- **Medium**: Added integer overflow protection in array size calculations
+- **Medium**: Fixed Markdown injection in hover provider and editor decorations
+- **Medium**: Added mutex locking to prevent race conditions in decoration updates
+- **Medium**: Added recursion depth limits for circular struct references
+- **Medium**: Fixed XSS in documentation site calculator
+- **Low**: Added architecture configuration validation
+
+### Added
+
+- Security advisory page on documentation site
+- HTML, Markdown, and CSV escaping utilities for user-controlled content
+- Configurable constants for resource limits and timeouts
+
+### Documentation
+
+- Published comprehensive security advisory with remediation timeline
+- Added JSDoc comments to GoParser and MemoryCalculator classes
+
 ## [0.3.0] - 2025-12-03
 
 ### Added

@@ -2,7 +2,7 @@
   "name": "go-memory-visualizer",
   "displayName": "Go Memory Layout Visualizer",
   "description": "Real-time visualization of Go struct memory layout, padding, and alignment with optimization suggestions",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "publisher": "RhinoSoftware",
   "author": {
     "name": "RhinoSoftware"
