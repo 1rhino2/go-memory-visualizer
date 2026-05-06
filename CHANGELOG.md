@@ -6,16 +6,30 @@ All notable changes to the Go Memory Layout Visualizer extension will be documen
 
 ### Added
 
-- Added automated tests for memory sizing, alias parsing, and optimizer regressions.
-- Added same-file type alias support, including aliases declared in `type (...)` blocks.
+- Same-file type alias support, including aliases declared in `type (...)` blocks.
+- Named-interface sizing: `error` is built in as a 2-word value, and any
+  `type X interface { ... }` declared in the same file is registered and sized
+  correctly (16 bytes on amd64/arm64, 8 bytes on 386).
+- Anonymous inline struct fields: `Header struct { ... }` field types are now
+  parsed and sized recursively, including multi-line declarations.
+- A 28-case automated test suite covering layout sizing, alias resolution,
+  interfaces, anonymous structs, nested and embedded structs, cache-line
+  detection, multi-architecture optimizer behaviour, and array overflow guards.
+- GitHub Actions CI running compile, lint, and tests on Node 20 and 22.
+- Incremental TypeScript builds via `tsBuildInfoFile`, cutting warm rebuilds
+  by roughly a third.
 
 ### Fixed
 
-- Fixed ESLint `no-case-declarations` failure in the memory calculator.
-- Fixed Go slice sizing to use the correct three-word slice header on supported architectures.
-- Fixed `complex64` alignment to match Go layout rules.
-- Fixed `unsafe.Pointer` sizing.
-- Fixed optimizer output so grouped field declarations are emitted once.
+- ESLint `no-case-declarations` failure in the memory calculator.
+- Go slice sizing now uses the correct three-word slice header on each
+  supported architecture (24 B on amd64/arm64, 12 B on 386).
+- `complex64` is now 8 bytes with 4-byte alignment, matching Go layout rules.
+- `unsafe.Pointer` is correctly pointer-sized.
+- `error` and other named interfaces no longer collapse to a single word.
+- Optimizer emits grouped field declarations like `A, B uint8` exactly once.
+- Interface declarations are no longer accidentally treated as structs by the
+  parser when they precede a real struct in the same file.
 
 ## [0.3.1] - 2025-12-05
 
@@ -145,13 +159,12 @@ All notable changes to the Go Memory Layout Visualizer extension will be documen
 - Smart field ordering by alignment and size
 - Visual padding warnings with configurable thresholds
 - Side-by-side memory layout comparison panel
-- Comprehensive test coverage for calculator, parser, and optimizer
+- Initial test coverage for calculator, parser, and optimizer
 
 ### Implementation
 
 - Built with TypeScript
 - Zero external runtime dependencies
-- Full test suite with 30+ test cases
 - Follows Go's memory layout rules precisely
 - Accurate padding calculation
 - Support for embedded fields and complex types

@@ -2,7 +2,11 @@
 
 **v1.0.0 is now available!** [Download from GitHub](https://github.com/1rhino2/go-memory-visualizer/releases/tag/v1.0.0) | [Install from OpenVSX](https://open-vsx.org/extension/RhinoSoftware/go-memory-visualizer) | [Visit Website](https://1rhino2.github.io/go-memory-visualizer/)
 
-**v1 Stable Release**: v1.0.0 adds compiler-compatible slice and `complex64` sizing, same-file type alias resolution, optimizer hardening, and an automated test suite.
+**v1 Stable Release**: v1.0.0 ships compiler-compatible slice, `complex64`,
+and `unsafe.Pointer` sizing, same-file type alias resolution, named-interface
+support (including the built-in `error` type), anonymous inline struct field
+parsing, optimizer hardening for grouped fields, and a 28-case automated
+test suite running on CI.
 
 
 
@@ -60,6 +64,11 @@ This vscode-go extension shows you exactly how Go lays out structs in memory - b
 - Same-file type aliases and alias blocks resolve to their underlying Go types
 - Slices use Go's three-word slice header size on each supported architecture
 - `complex64` uses 8 bytes with 4-byte alignment, matching Go's layout rules
+- `error` and any same-file `type X interface { ... }` declarations are sized
+  as 2-word interface values (16 bytes amd64/arm64, 8 bytes 386)
+- Anonymous inline struct fields (`Inner struct { ... }`) are parsed and
+  sized recursively, including multi-line declarations
+- `unsafe.Pointer` is treated as a pointer-sized value
 
 ### Multi-Architecture Support
 
@@ -390,11 +399,15 @@ npm test
 ```
 
 **Test Coverage:**
-- 7 unit tests across 3 modules
-- Memory calculator sizing and alias tests
-- Go parser alias block and layout tests
-- Struct optimizer savings and grouped-field regression tests
-- amd64 and 386 sizing covered
+
+- 28 automated tests across 3 modules, all running on CI for Node 20 and 22
+- Memory calculator: alias chains, slices, complex64, channels, maps, funcs,
+  interfaces, array overflow guards, multi-architecture sizing
+- Go parser: alias blocks, embedded structs and pointers, nested structs,
+  anonymous inline struct fields, cache-line crossings, struct tags,
+  interface declarations
+- Struct optimizer: savings, no-op detection, grouped-field regression,
+  threshold behaviour, 386-specific savings, error-field sizing
 
 ---
 
