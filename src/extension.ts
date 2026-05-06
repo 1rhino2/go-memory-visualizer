@@ -4,7 +4,14 @@ import * as fsPromises from 'fs/promises';
 import * as path from 'path';
 import { GoParser } from './goParser';
 import { StructOptimizer } from './optimizer';
-import { Architecture, ExportFormat, CACHE_LINE_SIZE } from './types';
+import { Architecture, ExportFormat, CACHE_LINE_SIZE, StructInfo } from './types';
+import {
+  buildStructDiagnostics,
+  StructDiagnostic,
+  DEFAULT_DIAGNOSTIC_OPTIONS,
+  summariseFileSavings
+} from './diagnostics';
+import { compareStructAcrossArchs } from './archCompare';
 
 // Security constants
 const MAX_FILES = 1000;
@@ -124,6 +131,12 @@ export function activate(context: vscode.ExtensionContext) {
     })
   );
 
+  context.subscriptions.push(
+    vscode.commands.registerCommand('goMemoryVisualizer.compareArchitectures', () => {
+      compareArchitecturesCommand(parser);
+    })
+  );
+
   // Register providers
   context.subscriptions.push(
     vscode.languages.registerHoverProvider('go', new MemoryLayoutHoverProvider(parser))
@@ -133,12 +146,41 @@ export function activate(context: vscode.ExtensionContext) {
     vscode.languages.registerCodeLensProvider('go', new OptimizationCodeLensProvider(parser, optimizer))
   );
 
+  context.subscriptions.push(
+    vscode.languages.registerCodeActionsProvider(
+      'go',
+      new OptimizationCodeActionProvider(parser, optimizer),
+      { providedCodeActionKinds: [vscode.CodeActionKind.QuickFix, vscode.CodeActionKind.RefactorRewrite] }
+    )
+  );
+
+  // Diagnostics surface high-padding, optimizable, and cache-line crossing
+  // structs in the Problems panel.
+  const diagnosticCollection = vscode.languages.createDiagnosticCollection('go-memory-visualizer');
+  context.subscriptions.push(diagnosticCollection);
+
+  // Status bar item: live byte savings for the current file.
+  const statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
+  statusBarItem.command = 'goMemoryVisualizer.showMemoryLayout';
+  context.subscriptions.push(statusBarItem);
+
+  const refreshDiagnosticsAndStatus = (document: vscode.TextDocument | undefined) => {
+    if (!document || document.languageId !== 'go') {
+      statusBarItem.hide();
+      return;
+    }
+    const structs = parser.parseStructs(document.getText());
+    publishDiagnostics(diagnosticCollection, document, structs, optimizer);
+    updateStatusBar(statusBarItem, structs, optimizer);
+  };
+
   // Update decorations on document change
   context.subscriptions.push(
     vscode.window.onDidChangeActiveTextEditor(editor => {
       if (editor && editor.document.languageId === 'go') {
         debouncedUpdateDecorations(editor, parser);
       }
+      refreshDiagnosticsAndStatus(editor?.document);
     })
   );
 
@@ -148,13 +190,21 @@ export function activate(context: vscode.ExtensionContext) {
       if (editor && event.document === editor.document && editor.document.languageId === 'go') {
         // VULN-017: Debounce to prevent race conditions and CPU spike
         debouncedUpdateDecorations(editor, parser);
+        refreshDiagnosticsAndStatus(editor.document);
       }
     })
   );
 
-  // Initial decoration
+  context.subscriptions.push(
+    vscode.workspace.onDidCloseTextDocument(document => {
+      diagnosticCollection.delete(document.uri);
+    })
+  );
+
+  // Initial pass over the active editor
   if (vscode.window.activeTextEditor?.document.languageId === 'go') {
     updateDecorations(vscode.window.activeTextEditor, parser);
+    refreshDiagnosticsAndStatus(vscode.window.activeTextEditor.document);
   }
 }
 
@@ -835,4 +885,182 @@ class OptimizationCodeLensProvider implements vscode.CodeLensProvider {
   }
 }
 
+// Surfaces the optimizer as a Quick Fix lightbulb (Ctrl+.) on any struct
+// declaration that can be reordered to save bytes.
+class OptimizationCodeActionProvider implements vscode.CodeActionProvider {
+  constructor(
+    private parser: GoParser,
+    private optimizer: StructOptimizer
+  ) {}
 
+  provideCodeActions(
+    document: vscode.TextDocument,
+    range: vscode.Range
+  ): vscode.ProviderResult<vscode.CodeAction[]> {
+    const structs = this.parser.parseStructs(document.getText());
+    const actions: vscode.CodeAction[] = [];
+
+    for (const struct of structs) {
+      if (range.start.line < struct.lineNumber || range.start.line > struct.endLineNumber) {
+        continue;
+      }
+      const result = this.optimizer.optimizeStruct(struct);
+      if (result.bytesSaved <= 0) {
+        continue;
+      }
+
+      const action = new vscode.CodeAction(
+        `Optimize ${struct.name} layout (save ${result.bytesSaved}B)`,
+        vscode.CodeActionKind.RefactorRewrite
+      );
+      action.command = {
+        command: 'goMemoryVisualizer.optimizeStruct',
+        title: 'Optimize Struct Memory Layout'
+      };
+      action.isPreferred = true;
+      actions.push(action);
+    }
+
+    return actions;
+  }
+}
+
+function publishDiagnostics(
+  collection: vscode.DiagnosticCollection,
+  document: vscode.TextDocument,
+  structs: StructInfo[],
+  optimizer: StructOptimizer
+): void {
+  const config = vscode.workspace.getConfiguration('goMemoryVisualizer');
+  const rawThreshold = config.get('paddingWarningThreshold', 8);
+  const paddingThreshold = Math.max(0, Number(rawThreshold) || 8);
+  const cacheLineWarnings = config.get('showCacheLineWarnings', true);
+
+  const items = buildStructDiagnostics(structs, optimizer, {
+    ...DEFAULT_DIAGNOSTIC_OPTIONS,
+    paddingThreshold,
+    cacheLineWarnings
+  });
+
+  const diagnostics: vscode.Diagnostic[] = items.map(item => toVSCodeDiagnostic(item, document));
+  collection.set(document.uri, diagnostics);
+}
+
+function toVSCodeDiagnostic(item: StructDiagnostic, document: vscode.TextDocument): vscode.Diagnostic {
+  const startLine = Math.max(0, Math.min(item.line, document.lineCount - 1));
+  const lineRange = document.lineAt(startLine).range;
+  const severity = item.severity === 'warning'
+    ? vscode.DiagnosticSeverity.Warning
+    : item.severity === 'hint'
+    ? vscode.DiagnosticSeverity.Hint
+    : vscode.DiagnosticSeverity.Information;
+
+  const diagnostic = new vscode.Diagnostic(lineRange, item.message, severity);
+  diagnostic.source = 'go-memory-visualizer';
+  diagnostic.code = item.code;
+  return diagnostic;
+}
+
+function updateStatusBar(
+  item: vscode.StatusBarItem,
+  structs: StructInfo[],
+  optimizer: StructOptimizer
+): void {
+  const summary = summariseFileSavings(structs, optimizer);
+  if (summary.totalStructs === 0) {
+    item.hide();
+    return;
+  }
+  if (summary.fileSaveable === 0) {
+    item.text = `$(check) Go layout: optimal`;
+    item.tooltip = `${summary.totalStructs} struct${summary.totalStructs === 1 ? '' : 's'} are already optimally ordered (${currentArch}).`;
+  } else {
+    item.text = `$(symbol-struct) Save ${summary.fileSaveable}B`;
+    item.tooltip = `${summary.optimizableCount} of ${summary.totalStructs} structs can be reordered to save a total of ${summary.fileSaveable} bytes (${currentArch}). Click to view layout.`;
+  }
+  item.show();
+}
+
+async function compareArchitecturesCommand(parser: GoParser) {
+  const editor = vscode.window.activeTextEditor;
+  if (!editor || editor.document.languageId !== 'go') {
+    vscode.window.showErrorMessage('Please open a Go file');
+    return;
+  }
+
+  const text = editor.document.getText();
+  const structs = parser.parseStructs(text);
+  const struct = structs.find(s =>
+    editor.selection.active.line >= s.lineNumber &&
+    editor.selection.active.line <= s.endLineNumber
+  );
+  if (!struct) {
+    vscode.window.showErrorMessage('Place the cursor inside a struct definition first');
+    return;
+  }
+
+  const comparison = compareStructAcrossArchs(text, struct.name);
+  if (!comparison) {
+    vscode.window.showErrorMessage(`Could not compare ${struct.name} across architectures`);
+    return;
+  }
+
+  const panel = vscode.window.createWebviewPanel(
+    'archComparison',
+    `Layout: ${struct.name}`,
+    vscode.ViewColumn.Beside,
+    { enableScripts: false, localResourceRoots: [] }
+  );
+
+  const safeName = escapeHtml(comparison.structName);
+  const archCols = comparison.layouts.map(l => `<th>${escapeHtml(l.architecture)}</th>`).join('');
+  const sizeRow = comparison.layouts
+    .map(l => `<td><strong>${l.totalSize}B</strong> &middot; ${l.totalPadding}B pad &middot; align ${l.alignment}</td>`)
+    .join('');
+
+  const fieldNames = comparison.layouts[0].fields.map(f => f.name);
+  const fieldRows = fieldNames.map(name => {
+    const cells = comparison.layouts
+      .map(l => {
+        const f = l.fields.find(ff => ff.name === name);
+        if (!f) {
+          return `<td>-</td>`;
+        }
+        const padCell = f.paddingAfter > 0 ? ` <span class="pad">+${f.paddingAfter}B</span>` : '';
+        return `<td>off ${f.offset} &middot; ${f.size}B${padCell}</td>`;
+      })
+      .join('');
+    return `<tr><th>${escapeHtml(name)}</th>${cells}</tr>`;
+  }).join('');
+
+  panel.webview.html = `
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline';">
+        <style>
+          body { font-family: var(--vscode-font-family); padding: 24px; color: var(--vscode-foreground); }
+          h1 { font-size: 18px; margin: 0 0 16px; }
+          p { margin: 0 0 16px; color: var(--vscode-descriptionForeground); }
+          table { border-collapse: collapse; width: 100%; }
+          th, td { border: 1px solid var(--vscode-panel-border); padding: 8px 12px; text-align: left; vertical-align: top; }
+          thead th { background: var(--vscode-editor-background); }
+          tbody th { font-weight: 600; width: 18%; }
+          .pad { color: #ff9c4a; font-style: italic; }
+          .totals td { background: var(--vscode-editor-background); }
+        </style>
+      </head>
+      <body>
+        <h1>${safeName} layout across architectures</h1>
+        <p>Side-by-side struct layout produced from the same source. Padding and alignment can shift between targets because pointer size and slice/string headers differ.</p>
+        <table>
+          <thead><tr><th>Field</th>${archCols}</tr></thead>
+          <tbody>
+            <tr class="totals"><th>total</th>${sizeRow}</tr>
+            ${fieldRows}
+          </tbody>
+        </table>
+      </body>
+    </html>
+  `;
+}

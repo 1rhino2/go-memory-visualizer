@@ -74,6 +74,10 @@
       {
         "command": "goMemoryVisualizer.analyzeWorkspace",
         "title": "Go: Analyze Workspace Memory Layout"
+      },
+      {
+        "command": "goMemoryVisualizer.compareArchitectures",
+        "title": "Go: Compare Struct Layout Across Architectures"
       }
     ],
     "configuration": {
