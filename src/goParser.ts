@@ -28,13 +28,24 @@ export class GoParser {
   private registerStructDefinitions(content: string): void {
     const lines = content.split('\n');
     const structStartRegex = /^\s*type\s+(\w+)\s+struct\s*\{/;
+    const typeAliasRegex = /^\s*(\w+)\s+(?:=\s*)?(.+)$/;
     
     let i = 0;
     while (i < lines.length) {
       const line = lines[i];
       const match = line.match(structStartRegex);
       
-      if (match) {
+      if (line.trim() === 'type (') {
+        i++;
+        while (i < lines.length && lines[i].trim() !== ')') {
+          const cleanTypeLine = lines[i].split('//')[0].trim();
+          const aliasMatch = cleanTypeLine.match(typeAliasRegex);
+          if (aliasMatch && !aliasMatch[2].startsWith('struct') && !aliasMatch[2].includes('{')) {
+            this.calculator.registerTypeAlias(aliasMatch[1], aliasMatch[2].trim());
+          }
+          i++;
+        }
+      } else if (match) {
         const structName = match[1];
         const fields: Array<{ name: string; typeName: string }> = [];
         
@@ -76,6 +87,12 @@ export class GoParser {
         }
         
         this.calculator.registerStruct(structName, fields);
+      } else {
+        const cleanTypeLine = line.split('//')[0].trim();
+        const aliasMatch = cleanTypeLine.match(/^type\s+(\w+)\s+(?:=\s*)?(.+)$/);
+        if (aliasMatch && !aliasMatch[2].startsWith('struct') && !aliasMatch[2].includes('{')) {
+          this.calculator.registerTypeAlias(aliasMatch[1], aliasMatch[2].trim());
+        }
       }
       
       i++;

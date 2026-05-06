@@ -60,13 +60,16 @@ export class StructOptimizer {
     // Build the optimized struct
     const newLines: string[] = [structDeclLine];
     
+    const emittedFieldLines = new Set<number>();
+
     // Add fields in optimized order
     for (const fieldName of optimization.reorderedFields) {
       const field = struct.fields.find(f => f.name === fieldName);
-      if (field) {
+      if (field && !emittedFieldLines.has(field.lineNumber)) {
         // Find the original field line
         const originalFieldLine = lines[field.lineNumber];
         newLines.push(originalFieldLine);
+        emittedFieldLines.add(field.lineNumber);
       }
     }
     

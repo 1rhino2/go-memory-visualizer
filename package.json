@@ -2,7 +2,7 @@
   "name": "go-memory-visualizer",
   "displayName": "Go Memory Layout Visualizer",
   "description": "Real-time visualization of Go struct memory layout, padding, and alignment with optimization suggestions",
-  "version": "0.3.1",
+  "version": "1.0.0",
   "publisher": "RhinoSoftware",
   "author": {
     "name": "RhinoSoftware"
@@ -113,6 +113,7 @@
     "compile": "tsc -p ./",
     "watch": "tsc -watch -p ./",
     "lint": "eslint src --ext ts",
+    "test": "npm run compile && node --test out/test/*.test.js",
     "audit": "npm audit --audit-level=moderate",
     "audit:fix": "npm audit fix",
     "security-check": "npm audit && npm run lint"

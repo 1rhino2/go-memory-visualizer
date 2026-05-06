@@ -19,6 +19,7 @@ interface StructDefinition {
 export class MemoryCalculator {
   private arch: Architecture;
   private structRegistry: Map<string, StructDefinition> = new Map();
+  private typeAliasRegistry: Map<string, string> = new Map();
 
   constructor(architecture: Architecture = 'amd64') {
     this.arch = architecture;
@@ -36,8 +37,13 @@ export class MemoryCalculator {
     this.structRegistry.set(name, { name, fields });
   }
 
+  registerTypeAlias(name: string, typeName: string): void {
+    this.typeAliasRegistry.set(name, typeName);
+  }
+
   clearStructRegistry(): void {
     this.structRegistry.clear();
+    this.typeAliasRegistry.clear();
   }
 
   /**
@@ -53,6 +59,12 @@ export class MemoryCalculator {
     if (seen.has(typeName)) {
       // Return pointer size for circular references
       return { size: ptrSize, alignment: ptrSize };
+    }
+
+    const aliasTarget = this.typeAliasRegistry.get(typeName);
+    if (aliasTarget) {
+      seen.add(typeName);
+      return this.getTypeInfo(aliasTarget, seen);
     }
     
     // Basic Go types with their sizes
@@ -76,8 +88,10 @@ export class MemoryCalculator {
       case 'int64':
       case 'uint64':
       case 'float64':
-      case 'complex64':
         return { size: 8, alignment: 8 };
+
+      case 'complex64':
+        return { size: 8, alignment: 4 };
       
       case 'complex128':
         return { size: 16, alignment: 8 };
@@ -92,8 +106,11 @@ export class MemoryCalculator {
       
       default:
         // Handle pointers, slices, maps, channels, interfaces
-        if (typeName.startsWith('*') || typeName.startsWith('[]')) {
+        if (typeName.startsWith('*') || typeName === 'unsafe.Pointer') {
           return { size: ptrSize, alignment: ptrSize };
+        }
+        if (typeName.startsWith('[]')) {
+          return { size: ptrSize * 3, alignment: ptrSize };
         }
         if (typeName.startsWith('[') && typeName.includes(']')) {
           // Array type [N]T
@@ -113,20 +130,28 @@ export class MemoryCalculator {
             };
           }
         }
-        if (typeName.startsWith('map[') || typeName.startsWith('chan ')) {
+        if (
+          typeName.startsWith('map[') ||
+          typeName.startsWith('chan ') ||
+          typeName.startsWith('chan<- ') ||
+          typeName.startsWith('<-chan ') ||
+          typeName.startsWith('func(')
+        ) {
           return { size: ptrSize, alignment: ptrSize };
         }
         if (typeName === 'interface{}' || typeName === 'any') {
           return { size: ptrSize * 2, alignment: ptrSize };
         }
         
-        // Check if it's a registered custom struct
-        const structDef = this.structRegistry.get(typeName);
-        if (structDef) {
-          // VULN-018: Track seen types to prevent infinite recursion
-          seen.add(typeName);
-          const layout = this.calculateStructSize(structDef.fields, seen);
-          return { size: layout.size, alignment: layout.alignment };
+        {
+          // Check if it's a registered custom struct
+          const structDef = this.structRegistry.get(typeName);
+          if (structDef) {
+            // VULN-018: Track seen types to prevent infinite recursion
+            seen.add(typeName);
+            const layout = this.calculateStructSize(structDef.fields, seen);
+            return { size: layout.size, alignment: layout.alignment };
+          }
         }
         
         // Default for unknown types (treat as pointer-sized)

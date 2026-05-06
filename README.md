@@ -1,8 +1,8 @@
 # Go Memory Layout Visualizer
 
-**v0.3.1 is now available!** [Download from GitHub](https://github.com/1rhino2/go-memory-visualizer/releases/tag/v0.3.1) | [Install from OpenVSX](https://open-vsx.org/extension/RhinoSoftware/go-memory-visualizer) | [Visit Website](https://1rhino2.github.io/go-memory-visualizer/)
+**v1.0.0 is now available!** [Download from GitHub](https://github.com/1rhino2/go-memory-visualizer/releases/tag/v1.0.0) | [Install from OpenVSX](https://open-vsx.org/extension/RhinoSoftware/go-memory-visualizer) | [Visit Website](https://1rhino2.github.io/go-memory-visualizer/)
 
-**Security Update**: v0.3.1 includes fixes for 18 security vulnerabilities. See the [Security Advisory](https://1rhino2.github.io/go-memory-visualizer/security.html) for details.
+**v1 Stable Release**: v1.0.0 adds compiler-compatible slice and `complex64` sizing, same-file type alias resolution, optimizer hardening, and an automated test suite.
 
 
 
@@ -45,14 +45,21 @@ This vscode-go extension shows you exactly how Go lays out structs in memory - b
 - Shows exact bytes saved before and after
 - Preserves your comments and struct tags
 - Safe refactoring that doesn't break anything
-- **NEW in v0.2**: Works with nested and embedded structs
+- Works with nested and embedded structs
+- **NEW in v1.0**: Keeps grouped field lines intact when optimizing
 
 ### Export and Reporting
 
-- **NEW in v0.2**: Export memory layout reports to JSON, Markdown, or CSV
+- Export memory layout reports to JSON, Markdown, or CSV
 - Detailed field-by-field analysis with offset, size, alignment, and padding information
 - Architecture-specific reports for cross-platform analysis
 - Perfect for documentation, code reviews, and performance audits
+
+### v1 Accuracy
+
+- Same-file type aliases and alias blocks resolve to their underlying Go types
+- Slices use Go's three-word slice header size on each supported architecture
+- `complex64` uses 8 bytes with 4-byte alignment, matching Go's layout rules
 
 ### Multi-Architecture Support
 
@@ -147,7 +154,8 @@ Access via Command Palette (`Ctrl+Shift+P` / `Cmd+Shift+P`):
 | `Go: Show Memory Layout` | Display detailed memory breakdown for all structs |
 | `Go: Optimize Struct Memory Layout` | Reorder fields in struct at cursor to minimize padding |
 | `Go: Toggle Architecture` | Switch between amd64, arm64, and 386 |
-| `Go: Export Memory Layout Report` | **NEW in v0.2**: Export struct analysis to JSON/Markdown/CSV |
+| `Go: Export Memory Layout Report` | Export struct analysis to JSON/Markdown/CSV |
+| `Go: Analyze Workspace Memory Layout` | Scan the workspace for padding and cache line issues |
 
 ---
 
@@ -382,11 +390,11 @@ npm test
 ```
 
 **Test Coverage:**
-- 33 unit tests across 3 modules
-- Memory calculator (18 tests)
-- Go parser (8 tests)
-- Struct optimizer (7 tests)
-- All architectures tested
+- 7 unit tests across 3 modules
+- Memory calculator sizing and alias tests
+- Go parser alias block and layout tests
+- Struct optimizer savings and grouped-field regression tests
+- amd64 and 386 sizing covered
 
 ---
 
@@ -430,11 +438,12 @@ npm test
 
 ## Known Issues
 
-None for v0.2.0! Previous limitations resolved:
+None for v1.0.0. Previous limitations resolved:
 
 - ~~Nested struct support~~ ✅ Added in v0.2.0
 - ~~Embedded struct handling~~ ✅ Added in v0.2.0
-- Union type support (planned for v0.3.0)
+- ~~Same-file type aliases~~ ✅ Added in v1.0.0
+- Union type support (planned)
 
 See [GitHub Issues](https://github.com/1rhino2/go-memory-visualizer/issues) for full list.
 
@@ -497,17 +506,18 @@ MIT License - see [LICENSE](LICENSE) file for details.
 - [x] Resource limits for workspace analyzer
 - [x] See [Security Advisory](https://1rhino2.github.io/go-memory-visualizer/security.html)
 
-### v0.4.0 (Planned)
+### v1.0.0 - Released 2026-05-06
+
+- [x] Compiler-compatible slice header and `complex64` sizing
+- [x] Same-file type aliases and alias blocks
+- [x] Automated test suite with parser, calculator, and optimizer coverage
+- [x] Grouped field optimization regression fix
+
+### Future
 
 - [ ] Union type support
 - [ ] Bitfield visualization
-- [ ] Visual memory map (graphical layout)
-
-### v1.0.0 (Future)
-
-- [ ] Integration with Go compiler
-- [ ] Benchmark comparison tools
-- [ ] Team collaboration features
+- [ ] Visual memory map
 
 ---
 

@@ -14,9 +14,7 @@ npm run compile
 
 3. Run tests:
 ```bash
-node out/test/memoryCalculator.test.js
-node out/test/goParser.test.js
-node out/test/optimizer.test.js
+npm test
 ```
 
 ## Running the Extension
@@ -34,7 +32,7 @@ node out/test/optimizer.test.js
 ```bash
 npm install -g @vscode/vsce
 vsce package
-code --install-extension go-memory-visualizer-0.1.0.vsix
+code --install-extension go-memory-visualizer-1.0.0.vsix
 ```
 
 ## Features to Test
@@ -64,7 +62,9 @@ code --install-extension go-memory-visualizer-0.1.0.vsix
 - `Ctrl+Shift+P` → "Go: Optimize Struct Memory Layout"
   - Optimizes struct under cursor
 - `Ctrl+Shift+P` → "Go: Export Memory Layout Report"
-  - **NEW in v0.2**: Export to JSON/Markdown/CSV
+  - Export to JSON/Markdown/CSV
+- `Ctrl+Shift+P` → "Go: Analyze Workspace Memory Layout"
+  - Scan the workspace for padding and cache line issues
 
 ### 5. Architecture Support
 - Test with different architectures
@@ -92,7 +92,7 @@ src/
 ├── goParser.ts           - Go AST parsing
 ├── optimizer.ts          - Struct field reordering
 ├── extension.ts          - VS Code integration
-└── test/
+└── test/                 - Node test runner coverage
     ├── memoryCalculator.test.ts
     ├── goParser.test.ts
     └── optimizer.test.ts
@@ -107,7 +107,7 @@ src/
 - `int64`, `uint64`, `float64`: 8 bytes
 - `int`, `uint`, `uintptr`, `*T`: 8 bytes (pointer size)
 - `string`: 16 bytes (pointer + length)
-- `[]T`: 8 bytes (slice header pointer)
+- `[]T`: 24 bytes (pointer + length + capacity)
 - `interface{}`: 16 bytes (type + data pointers)
 
 ### Alignment Rules
@@ -168,6 +168,19 @@ New command exports memory layouts in multiple formats:
 - JSON: Machine-readable with full details
 - Markdown: Human-readable documentation
 - CSV: Spreadsheet-compatible data
+
+## v1.0.0 Features
+
+### Layout Accuracy
+
+- Same-file type aliases resolve to their underlying types
+- Alias blocks declared with `type (...)` are registered before layout calculation
+- Slice headers and `complex64` match Go's memory layout on supported architectures
+
+### Regression Coverage
+
+- `npm test` compiles TypeScript and runs calculator, parser, and optimizer tests
+- Optimizer coverage protects grouped field lines from duplicate emission
 
 ## Future Enhancements
 

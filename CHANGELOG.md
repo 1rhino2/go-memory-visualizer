@@ -2,6 +2,21 @@
 
 All notable changes to the Go Memory Layout Visualizer extension will be documented in this file.
 
+## [1.0.0] - 2026-05-06
+
+### Added
+
+- Added automated tests for memory sizing, alias parsing, and optimizer regressions.
+- Added same-file type alias support, including aliases declared in `type (...)` blocks.
+
+### Fixed
+
+- Fixed ESLint `no-case-declarations` failure in the memory calculator.
+- Fixed Go slice sizing to use the correct three-word slice header on supported architectures.
+- Fixed `complex64` alignment to match Go layout rules.
+- Fixed `unsafe.Pointer` sizing.
+- Fixed optimizer output so grouped field declarations are emitted once.
+
 ## [0.3.1] - 2025-12-05
 
 ### Security
