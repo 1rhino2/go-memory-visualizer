@@ -16,10 +16,15 @@ interface StructDefinition {
  * Calculates memory layout for Go structs based on architecture
  * Supports amd64, arm64, and 386 architectures
  */
+// Built-in Go interface types that ship with the language. We pre-register
+// these so users do not need a stdlib parse for accurate sizing.
+const BUILTIN_INTERFACES: ReadonlyArray<string> = ['error'];
+
 export class MemoryCalculator {
   private arch: Architecture;
   private structRegistry: Map<string, StructDefinition> = new Map();
   private typeAliasRegistry: Map<string, string> = new Map();
+  private interfaceRegistry: Set<string> = new Set(BUILTIN_INTERFACES);
 
   constructor(architecture: Architecture = 'amd64') {
     this.arch = architecture;
@@ -41,9 +46,14 @@ export class MemoryCalculator {
     this.typeAliasRegistry.set(name, typeName);
   }
 
+  registerInterface(name: string): void {
+    this.interfaceRegistry.add(name);
+  }
+
   clearStructRegistry(): void {
     this.structRegistry.clear();
     this.typeAliasRegistry.clear();
+    this.interfaceRegistry = new Set(BUILTIN_INTERFACES);
   }
 
   /**
@@ -142,7 +152,12 @@ export class MemoryCalculator {
         if (typeName === 'interface{}' || typeName === 'any') {
           return { size: ptrSize * 2, alignment: ptrSize };
         }
-        
+        // Named interfaces (e.g. error, io.Reader, custom interfaces) are
+        // 2-word values: type pointer + data pointer.
+        if (this.interfaceRegistry.has(typeName)) {
+          return { size: ptrSize * 2, alignment: ptrSize };
+        }
+
         {
           // Check if it's a registered custom struct
           const structDef = this.structRegistry.get(typeName);
@@ -153,8 +168,11 @@ export class MemoryCalculator {
             return { size: layout.size, alignment: layout.alignment };
           }
         }
-        
-        // Default for unknown types (treat as pointer-sized)
+
+        // Default for unknown types (treat as pointer-sized). External
+        // qualified types like `time.Time` or `io.Reader` are intentionally
+        // not guessed here, since `pkg.Type` could be a struct or an
+        // interface. Users can call `registerInterface` for known cases.
         return { size: ptrSize, alignment: ptrSize };
     }
   }
