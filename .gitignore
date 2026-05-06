@@ -3,3 +3,4 @@ out/
 .vscode-test/
 *.vsix
 .DS_Store
+*.tsbuildinfo

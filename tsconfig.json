@@ -10,7 +10,9 @@
     "esModuleInterop": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
-    "resolveJsonModule": true
+    "resolveJsonModule": true,
+    "incremental": true,
+    "tsBuildInfoFile": "out/.tsbuildinfo"
   },
   "include": ["src/**/*"],
   "exclude": ["node_modules", ".vscode-test"]
