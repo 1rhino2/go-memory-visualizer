@@ -165,6 +165,13 @@ Access via Command Palette (`Ctrl+Shift+P` / `Cmd+Shift+P`):
 | `Go: Toggle Architecture` | Switch between amd64, arm64, and 386 |
 | `Go: Export Memory Layout Report` | Export struct analysis to JSON/Markdown/CSV |
 | `Go: Analyze Workspace Memory Layout` | Scan the workspace for padding and cache line issues |
+| `Go: Compare Struct Layout Across Architectures` | Side-by-side amd64/arm64/386 layout for the struct at cursor |
+
+Optimization is also available as a Quick Fix (`Ctrl+.` / `Cmd+.`) on any
+struct that can be reordered for savings, and the status bar shows the total
+bytes saveable in the current file at a glance. High-padding,
+optimization-eligible, and cache-line-crossing structs are surfaced in the
+Problems panel via diagnostics.
 
 ---
 

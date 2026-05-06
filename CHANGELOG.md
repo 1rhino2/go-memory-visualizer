@@ -6,6 +6,15 @@ All notable changes to the Go Memory Layout Visualizer extension will be documen
 
 ### Added
 
+- Quick Fix code action: optimization is now available via the standard
+  lightbulb (`Ctrl+.` / `Cmd+.`) on any reorderable struct, in addition to
+  the existing CodeLens.
+- Diagnostic provider: high-padding, optimization-eligible, and
+  cache-line-crossing structs are surfaced in the Problems panel.
+- Status bar item: shows the total saveable bytes for the active Go file at
+  a glance, click-through opens the layout view.
+- New command `Go: Compare Struct Layout Across Architectures` opens a
+  side-by-side amd64/arm64/386 view for the struct at the cursor.
 - Same-file type alias support, including aliases declared in `type (...)` blocks.
 - Named-interface sizing: `error` is built in as a 2-word value, and any
   `type X interface { ... }` declared in the same file is registered and sized
