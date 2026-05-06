@@ -81,7 +81,11 @@
       "properties": {
         "goMemoryVisualizer.defaultArchitecture": {
           "type": "string",
-          "enum": ["amd64", "arm64", "386"],
+          "enum": [
+            "amd64",
+            "arm64",
+            "386"
+          ],
           "default": "amd64",
           "description": "Default architecture for memory layout calculation"
         },
@@ -112,20 +116,20 @@
     "vscode:prepublish": "npm run compile",
     "compile": "tsc -p ./",
     "watch": "tsc -watch -p ./",
-    "lint": "eslint src --ext ts",
+    "lint": "eslint src",
     "test": "npm run compile && node --test out/test/*.test.js",
     "audit": "npm audit --audit-level=moderate",
     "audit:fix": "npm audit fix",
     "security-check": "npm audit && npm run lint"
   },
   "devDependencies": {
-    "@types/vscode": "^1.85.0",
+    "@eslint/js": "^10.0.1",
     "@types/node": "20.x",
-    "@typescript-eslint/eslint-plugin": "^6.15.0",
-    "@typescript-eslint/parser": "^6.15.0",
-    "eslint": "^8.56.0",
-    "typescript": "^5.3.3",
-    "@vscode/test-electron": "^2.3.8"
-  },
-  "dependencies": {}
+    "@types/vscode": "^1.85.0",
+    "@typescript-eslint/eslint-plugin": "^8.59.2",
+    "@typescript-eslint/parser": "^8.59.2",
+    "@vscode/test-electron": "^2.3.8",
+    "eslint": "^10.3.0",
+    "typescript": "^5.3.3"
+  }
 }
