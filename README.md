@@ -10,7 +10,7 @@ test suite running on CI.
 
 
 
-A VS Code extension for real-time visualization and optimization of Go struct memory layout. This GitHub repository provides a powerful golang tool for analyzing struct padding, alignment, and cache performance in your Go code.
+VS Code extension for Go struct memory layout: padding, alignment, cache lines, and one-click field reorder.
 
 [![Go](https://img.shields.io/badge/Go-00ADD8?logo=go&logoColor=white)](https://go.dev)
 [![VS Code](https://img.shields.io/badge/VS_Code-007ACC?logo=visualstudiocode&logoColor=white)](https://code.visualstudio.com)
