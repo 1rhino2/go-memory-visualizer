@@ -14,7 +14,8 @@ export class StructOptimizer {
         originalSize: 0,
         optimizedSize: 0,
         bytesSaved: 0,
-        reorderedFields: []
+        reorderedFields: [],
+        optimizedPadding: 0
       };
     }
 
@@ -33,11 +34,14 @@ export class StructOptimizer {
       sortedFields.map(f => ({ typeName: f.typeName }))
     );
 
+    const optimizedPadding = optimizedLayout.paddings.reduce((sum, p) => sum + p, 0);
+
     return {
       originalSize,
       optimizedSize: optimizedLayout.size,
       bytesSaved: originalSize - optimizedLayout.size,
-      reorderedFields: sortedFields.map(f => f.name)
+      reorderedFields: sortedFields.map(f => f.name),
+      optimizedPadding
     };
   }
 

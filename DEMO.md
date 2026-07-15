@@ -39,6 +39,15 @@ Fields with excessive padding highlighted in yellow/orange.
 
 Toggle between amd64, arm64, and 386 to see different layouts.
 
+### 6. Visual Memory Map
+
+Command: `Go: Show Visual Memory Map`
+
+Opens a colored byte grid for the struct under the cursor, plus an ASCII
+map you can paste into a PR. Pack score shows how dense the layout is.
+
+See `examples/memory-map.go` for a ready-made demo.
+
 ## Real-World Examples
 
 See `examples/demonstration.go` for 10 complete examples including:
@@ -50,7 +59,8 @@ See `examples/demonstration.go` for 10 complete examples including:
 ## Commands
 
 - `Go: Show Memory Layout` - Full breakdown
-- `Go: Optimize Struct` - Reorder fields
+- `Go: Show Visual Memory Map` - Byte grid + ASCII
+- `Go: Optimize Struct` - Reorder fields (with preview)
 - `Go: Toggle Architecture` - Switch platforms
 
 Ready to save memory and improve cache efficiency!

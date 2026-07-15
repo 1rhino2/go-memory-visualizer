@@ -38,6 +38,8 @@ export interface StructInfo {
   cacheLines: CacheLineInfo[];      // cache line breakdown
   cacheLinesCrossed: number;        // how many cache lines this struct spans
   hotFields: string[];              // fields that cross cache line boundaries
+  // 0-100: share of bytes that are real data (not padding)
+  packScore: number;
 }
 
 export interface MemoryLayout {
@@ -50,6 +52,7 @@ export interface OptimizationResult {
   optimizedSize: number;
   bytesSaved: number;
   reorderedFields: string[];
+  optimizedPadding: number;
 }
 
 export interface StructDefinition {

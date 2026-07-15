@@ -1,4 +1,5 @@
 import { Architecture } from './types';
+import { getKnownTypeInfo } from './knownTypes';
 
 /** Type size and alignment information */
 interface TypeSizeInfo {
@@ -25,9 +26,15 @@ export class MemoryCalculator {
   private structRegistry: Map<string, StructDefinition> = new Map();
   private typeAliasRegistry: Map<string, string> = new Map();
   private interfaceRegistry: Set<string> = new Set(BUILTIN_INTERFACES);
+  // when true we size common stdlib types (time.Time, sync.Mutex, ...) correctly
+  private useKnownTypes: boolean = true;
 
   constructor(architecture: Architecture = 'amd64') {
     this.arch = architecture;
+  }
+
+  setUseKnownTypes(enabled: boolean): void {
+    this.useKnownTypes = enabled;
   }
 
   setArchitecture(arch: Architecture): void {
@@ -158,6 +165,15 @@ export class MemoryCalculator {
           return { size: ptrSize * 2, alignment: ptrSize };
         }
 
+        // Well-known stdlib types (time.Time, sync.Mutex, ...) that are not
+        // defined in the same file. Skip if the user turned this off.
+        if (this.useKnownTypes) {
+          const known = getKnownTypeInfo(typeName, this.arch);
+          if (known) {
+            return known;
+          }
+        }
+
         {
           // Check if it's a registered custom struct
           const structDef = this.structRegistry.get(typeName);
@@ -170,9 +186,9 @@ export class MemoryCalculator {
         }
 
         // Default for unknown types (treat as pointer-sized). External
-        // qualified types like `time.Time` or `io.Reader` are intentionally
-        // not guessed here, since `pkg.Type` could be a struct or an
-        // interface. Users can call `registerInterface` for known cases.
+        // qualified types like `io.Reader` are intentionally not guessed
+        // here unless they are known interfaces or in the known-types table.
+        // Users can call `registerInterface` for known cases.
         return { size: ptrSize, alignment: ptrSize };
     }
   }

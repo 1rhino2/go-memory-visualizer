@@ -1,5 +1,6 @@
 import { StructInfo, FieldInfo, Architecture, CacheLineInfo, CACHE_LINE_SIZE } from './types';
 import { MemoryCalculator } from './memoryCalculator';
+import { computePackScore } from './memoryMap';
 
 /**
  * Parser for Go struct definitions
@@ -255,7 +256,8 @@ export class GoParser {
         alignment: 1,
         cacheLines: [],
         cacheLinesCrossed: 0,
-        hotFields: []
+        hotFields: [],
+        packScore: 100
       };
     }
 
@@ -311,7 +313,8 @@ export class GoParser {
       alignment: layout.alignment,
       cacheLines,
       cacheLinesCrossed,
-      hotFields
+      hotFields,
+      packScore: computePackScore(layout.size, totalPadding)
     };
   }
 

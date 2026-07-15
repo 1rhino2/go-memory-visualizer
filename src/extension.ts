@@ -12,6 +12,8 @@ import {
   summariseFileSavings
 } from './diagnostics';
 import { compareStructAcrossArchs } from './archCompare';
+import { buildMemoryMap, renderAsciiMap, buildOptimizePreview } from './memoryMap';
+import { buildMemoryMapHtml, buildOptimizePreviewHtml } from './webviewHtml';
 
 // Security constants
 const MAX_FILES = 1000;
@@ -100,6 +102,10 @@ export function activate(context: vscode.ExtensionContext) {
   // VULN-003: Use public getter instead of bracket notation
   const optimizer = new StructOptimizer(parser.getCalculator());
 
+  // honor known-stdlib setting so people can turn guessing off
+  const useKnown = config.get('useKnownStdlibTypes', true);
+  parser.getCalculator().setUseKnownTypes(Boolean(useKnown));
+
   // Register commands
   context.subscriptions.push(
     vscode.commands.registerCommand('goMemoryVisualizer.optimizeStruct', () => {
@@ -134,6 +140,12 @@ export function activate(context: vscode.ExtensionContext) {
   context.subscriptions.push(
     vscode.commands.registerCommand('goMemoryVisualizer.compareArchitectures', () => {
       compareArchitecturesCommand(parser);
+    })
+  );
+
+  context.subscriptions.push(
+    vscode.commands.registerCommand('goMemoryVisualizer.showMemoryMap', () => {
+      showMemoryMapCommand(parser);
     })
   );
 
@@ -173,6 +185,20 @@ export function activate(context: vscode.ExtensionContext) {
     publishDiagnostics(diagnosticCollection, document, structs, optimizer);
     updateStatusBar(statusBarItem, structs, optimizer);
   };
+
+  // keep known-types toggle live without reload
+  context.subscriptions.push(
+    vscode.workspace.onDidChangeConfiguration(event => {
+      if (event.affectsConfiguration('goMemoryVisualizer.useKnownStdlibTypes')) {
+        const fresh = vscode.workspace.getConfiguration('goMemoryVisualizer');
+        parser.getCalculator().setUseKnownTypes(Boolean(fresh.get('useKnownStdlibTypes', true)));
+        if (vscode.window.activeTextEditor?.document.languageId === 'go') {
+          updateDecorations(vscode.window.activeTextEditor, parser);
+          refreshDiagnosticsAndStatus(vscode.window.activeTextEditor.document);
+        }
+      }
+    })
+  );
 
   // Update decorations on document change
   context.subscriptions.push(
@@ -328,6 +354,50 @@ async function optimizeStructCommand(parser: GoParser, optimizer: StructOptimize
     return;
   }
 
+  const config = vscode.workspace.getConfiguration('goMemoryVisualizer');
+  const confirm = config.get('confirmBeforeOptimize', true);
+
+  if (confirm) {
+    const preview = buildOptimizePreview(
+      struct,
+      result.originalSize,
+      result.optimizedSize,
+      result.bytesSaved,
+      result.reorderedFields,
+      result.optimizedPadding
+    );
+
+    const panel = vscode.window.createWebviewPanel(
+      'optimizePreview',
+      `Optimize ${struct.name}?`,
+      vscode.ViewColumn.Beside,
+      { enableScripts: false, localResourceRoots: [] }
+    );
+    panel.webview.html = buildOptimizePreviewHtml(preview);
+
+    const choice = await vscode.window.showQuickPick(
+      [
+        {
+          label: `Apply reorder`,
+          description: `${result.originalSize}B → ${result.optimizedSize}B (save ${result.bytesSaved}B)`,
+          apply: true
+        },
+        {
+          label: `Cancel`,
+          description: 'Leave the struct as-is',
+          apply: false
+        }
+      ],
+      { placeHolder: `Reorder ${struct.name}? pack ${preview.originalPackScore}% → ${preview.optimizedPackScore}%` }
+    );
+
+    panel.dispose();
+
+    if (!choice || !choice.apply) {
+      return;
+    }
+  }
+
   const optimized = optimizer.generateOptimizedCode(text, struct, result);
   
   await editor.edit(editBuilder => {
@@ -339,8 +409,51 @@ async function optimizeStructCommand(parser: GoParser, optimizer: StructOptimize
   });
 
   vscode.window.showInformationMessage(
-    `Optimized ${struct.name}: saved ${result.bytesSaved} bytes (${result.originalSize}B → ${result.optimizedSize}B)`
+    `Optimized ${struct.name}: saved ${result.bytesSaved} bytes (${result.originalSize}B → ${result.optimizedSize}B, pack ${struct.packScore}% → ${computePackFromResult(result)}%)`
   );
+}
+
+function computePackFromResult(result: { optimizedSize: number; optimizedPadding: number }): number {
+  if (result.optimizedSize <= 0) {
+    return 100;
+  }
+  return Math.round(((result.optimizedSize - result.optimizedPadding) / result.optimizedSize) * 100);
+}
+
+function showMemoryMapCommand(parser: GoParser) {
+  const editor = vscode.window.activeTextEditor;
+  if (!editor || editor.document.languageId !== 'go') {
+    vscode.window.showErrorMessage('Please open a Go file');
+    return;
+  }
+
+  const text = editor.document.getText();
+  const structs = parser.parseStructs(text);
+  if (structs.length === 0) {
+    vscode.window.showInformationMessage('No structs found in current file');
+    return;
+  }
+
+  const position = editor.selection.active;
+  let struct = structs.find(s =>
+    position.line >= s.lineNumber && position.line <= s.endLineNumber
+  );
+
+  // fall back to first struct if cursor is not inside one
+  if (!struct) {
+    struct = structs[0];
+  }
+
+  const map = buildMemoryMap(struct);
+  const ascii = renderAsciiMap(map);
+
+  const panel = vscode.window.createWebviewPanel(
+    'memoryMap',
+    `Memory Map: ${struct.name}`,
+    vscode.ViewColumn.Beside,
+    { enableScripts: false, localResourceRoots: [] }
+  );
+  panel.webview.html = buildMemoryMapHtml(map, ascii);
 }
 
 function showMemoryLayoutCommand(parser: GoParser) {
@@ -575,7 +688,11 @@ function generateMarkdownReport(data: ExportFormat): string {
     md += `## ${struct.name}\n\n`;
     md += `- **Total Size:** ${struct.totalSize} bytes\n`;
     md += `- **Alignment:** ${struct.alignment} bytes\n`;
-    md += `- **Total Padding:** ${struct.totalPadding} bytes (${struct.paddingPercentage.toFixed(2)}%)\n\n`;
+    md += `- **Total Padding:** ${struct.totalPadding} bytes (${struct.paddingPercentage.toFixed(2)}%)\n`;
+    const pack = struct.totalSize > 0
+      ? Math.round(((struct.totalSize - struct.totalPadding) / struct.totalSize) * 100)
+      : 100;
+    md += `- **Pack Score:** ${pack}%\n\n`;
     
     md += `### Fields\n\n`;
     md += `| Field | Type | Offset | Size | Alignment | Padding After |\n`;
@@ -872,7 +989,7 @@ class OptimizationCodeLensProvider implements vscode.CodeLensProvider {
         const range = new vscode.Range(struct.lineNumber, 0, struct.lineNumber, 0);
         
         const lens = new vscode.CodeLens(range, {
-          title: `Optimize Layout (save ${result.bytesSaved}B)`,
+          title: `Optimize Layout (save ${result.bytesSaved}B · pack ${struct.packScore}%)`,
           command: 'goMemoryVisualizer.optimizeStruct',
           arguments: []
         });
@@ -971,12 +1088,17 @@ function updateStatusBar(
     item.hide();
     return;
   }
+
+  const avgPack = structs.length > 0
+    ? Math.round(structs.reduce((sum, s) => sum + s.packScore, 0) / structs.length)
+    : 100;
+
   if (summary.fileSaveable === 0) {
-    item.text = `$(check) Go layout: optimal`;
-    item.tooltip = `${summary.totalStructs} struct${summary.totalStructs === 1 ? '' : 's'} are already optimally ordered (${currentArch}).`;
+    item.text = `$(check) Go layout: optimal · ${avgPack}% packed`;
+    item.tooltip = `${summary.totalStructs} struct${summary.totalStructs === 1 ? '' : 's'} already optimally ordered (${currentArch}). Avg pack score ${avgPack}%.`;
   } else {
-    item.text = `$(symbol-struct) Save ${summary.fileSaveable}B`;
-    item.tooltip = `${summary.optimizableCount} of ${summary.totalStructs} structs can be reordered to save a total of ${summary.fileSaveable} bytes (${currentArch}). Click to view layout.`;
+    item.text = `$(symbol-struct) Save ${summary.fileSaveable}B · ${avgPack}% packed`;
+    item.tooltip = `${summary.optimizableCount} of ${summary.totalStructs} structs can be reordered to save ${summary.fileSaveable} bytes (${currentArch}). Avg pack score ${avgPack}%. Click for layout.`;
   }
   item.show();
 }

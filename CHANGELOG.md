@@ -2,6 +2,35 @@
 
 All notable changes to the Go Memory Layout Visualizer extension will be documented in this file.
 
+## [1.1.0] - 2026-07-15
+
+### Added
+
+- Visual memory map: new command `Go: Show Visual Memory Map` draws a
+  byte-level grid for the struct under the cursor (fields vs padding),
+  plus a copy-friendly ASCII map with a legend.
+- Pack score (0-100): how much of each struct is real data vs padding.
+  Shows up in the status bar, CodeLens, StructInfo, and markdown exports.
+- Optimize preview: before rewriting field order, a side panel shows
+  current vs proposed order and the pack-score delta. Confirm with a
+  quick pick. Turn off via `goMemoryVisualizer.confirmBeforeOptimize`.
+- Known stdlib sizes: `time.Time`, `time.Duration`, `sync.Mutex`,
+  `sync.RWMutex`, `sync.WaitGroup`, `sync.Once`, `atomic.*`,
+  `context.Context`, and `json.RawMessage` are sized from a known-layout
+  table instead of collapsing to pointer size. Disable with
+  `goMemoryVisualizer.useKnownStdlibTypes`.
+- Example file `examples/memory-map.go` for trying the map and stdlib sizing.
+- Demo GIF (`docs/demo.gif`) for the README - regenerate with
+  `python scripts/make_demo_gif.py` (needs Pillow).
+- 13 new unit tests (52 total) covering the map builder, pack score,
+  known types, and optimize preview.
+
+### Changed
+
+- CodeLens now reads `Optimize Layout (save NB · pack N%)`.
+- Status bar shows average pack score alongside saveable bytes.
+- Markdown export includes pack score per struct.
+
 ## [1.0.0] - 2026-05-06
 
 ### Added

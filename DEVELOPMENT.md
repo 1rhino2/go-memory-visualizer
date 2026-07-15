@@ -87,15 +87,17 @@ Settings in `.vscode/settings.json`:
 
 ```
 src/
-├── types.ts              - TypeScript interfaces
+├── types.ts              - Shared interfaces
 ├── memoryCalculator.ts   - Core memory layout logic
-├── goParser.ts           - Go AST parsing
+├── knownTypes.ts         - Stable stdlib sizes (time, sync, atomic)
+├── goParser.ts           - Go struct parsing
 ├── optimizer.ts          - Struct field reordering
+├── memoryMap.ts          - Byte map + pack score + ASCII
+├── webviewHtml.ts        - CSP-locked webview HTML builders
+├── diagnostics.ts        - Problems panel + savings summary
+├── archCompare.ts        - Cross-arch layout compare
 ├── extension.ts          - VS Code integration
 └── test/                 - Node test runner coverage
-    ├── memoryCalculator.test.ts
-    ├── goParser.test.ts
-    └── optimizer.test.ts
 ```
 
 ## Memory Layout Rules
@@ -184,8 +186,7 @@ New command exports memory layouts in multiple formats:
 
 ## Future Enhancements
 
-- [ ] Cache line boundary visualization
-- [ ] Union type support
-- [ ] Comparison view (before/after optimization)
-- [ ] Integration with Go's `unsafe.Sizeof`
-- [ ] Benchmark impact visualization
+- [ ] Union / sum-type helpers
+- [ ] Bitfield visualization
+- [ ] Optional gopls / `unsafe.Sizeof` cross-check
+- [ ] Benchmark impact notes in the optimize preview

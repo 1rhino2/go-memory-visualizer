@@ -1,31 +1,58 @@
 # Go Memory Layout Visualizer
 
-**v1.0.0 is now available!** [Download from GitHub](https://github.com/1rhino2/go-memory-visualizer/releases/tag/v1.0.0) | [Install from OpenVSX](https://open-vsx.org/extension/RhinoSoftware/go-memory-visualizer) | [Visit Website](https://1rhino2.github.io/go-memory-visualizer/)
+<p align="center">
+  <img src="docs/demo.gif" alt="Demo: sparse struct memory map, CodeLens optimize, pack score after reorder" width="880" />
+</p>
 
-**v1 Stable Release**: v1.0.0 ships compiler-compatible slice, `complex64`,
-and `unsafe.Pointer` sizing, same-file type alias resolution, named-interface
-support (including the built-in `error` type), anonymous inline struct field
-parsing, optimizer hardening for grouped fields, and a 28-case automated
-test suite running on CI.
+<p align="center">
+  <b>See the padding Go inserts. Reorder in one click.</b><br/>
+  Inline annotations · visual byte map · pack score · cache lines · amd64/arm64/386
+</p>
 
+<p align="center">
+  <a href="https://marketplace.visualstudio.com/items?itemName=RhinoSoftware.go-memory-visualizer"><img src="https://img.shields.io/visual-studio-marketplace/i/RhinoSoftware.go-memory-visualizer?label=VS%20Marketplace&logo=visualstudiocode" alt="VS Marketplace" /></a>
+  <a href="https://open-vsx.org/extension/RhinoSoftware/go-memory-visualizer"><img src="https://img.shields.io/open-vsx/dt/RhinoSoftware/go-memory-visualizer?label=Open%20VSX&logo=vscodium" alt="Open VSX" /></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-green.svg" alt="MIT" /></a>
+  <img src="https://img.shields.io/badge/version-1.1.0-00ADD8" alt="v1.1.0" />
+</p>
 
+**Install:** `ext install RhinoSoftware.go-memory-visualizer`  
+Or: [Marketplace](https://marketplace.visualstudio.com/items?itemName=RhinoSoftware.go-memory-visualizer) · [Open VSX](https://open-vsx.org/extension/RhinoSoftware/go-memory-visualizer) · [Website](https://1rhino2.github.io/go-memory-visualizer/)
 
-VS Code extension for Go struct memory layout: padding, alignment, cache lines, and one-click field reorder.
+---
 
-[![Go](https://img.shields.io/badge/Go-00ADD8?logo=go&logoColor=white)](https://go.dev)
-[![VS Code](https://img.shields.io/badge/VS_Code-007ACC?logo=visualstudiocode&logoColor=white)](https://code.visualstudio.com)
-[![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+### 30 seconds to “oh”
 
-## What It Does
+```go
+type Sparse struct {
+    Active bool    // 1B + 7B padding
+    ID     uint64
+    Tag    uint8   // 1B + 7B padding
+    Name   string
+}
+// 40B · pack 65% · 14B wasted
+```
 
-This vscode-go extension shows you exactly how Go lays out structs in memory - byte offsets, alignment, padding, and cache line boundaries. It highlights wasteful padding in your golang structs and optimizes field ordering with one click, helping you reduce memory usage and improve performance.
+Open the file → annotations appear → click **Optimize Layout (save 8B · pack 65%)**:
 
-## Why Use This
+```text
+Sparse  40B  pack 65%  pad 14B
+0000  A.......BBBBBBBB
+0010  C.......DDDDDDDD
+0020  DDDDDDDD
+legend: A=Active  B=ID  C=Tag  D=Name  .=padding
+```
 
-- Reduce struct sizes by 10-30% without changing logic
-- Better cache locality means better performance
-- Learn how Go actually stores your data in memory
-- See the impact of field ordering in real-time
+After reorder: **32B · pack 85% · saved 8 bytes**. Same fields, less air.
+
+---
+
+## Why people install this
+
+- Spot padding without running `unsafe.Sizeof` or reading the Go ABI by hand
+- Cut struct size 10–30% on hot types (API responses, events, DB models)
+- Teach juniors (and yourself) how alignment actually works
+- Paste the ASCII map into a PR when you want reviewers to see the waste
 
 ## Features
 
@@ -47,10 +74,17 @@ This vscode-go extension shows you exactly how Go lays out structs in memory - b
 
 - Automatic field reordering by alignment and size
 - Shows exact bytes saved before and after
+- Preview before rewrite (current vs proposed order + pack score)
 - Preserves your comments and struct tags
 - Safe refactoring that doesn't break anything
 - Works with nested and embedded structs
-- **NEW in v1.0**: Keeps grouped field lines intact when optimizing
+- Keeps grouped field lines intact when optimizing
+
+### Visual Memory Map (new in v1.1)
+
+- Byte-level colored grid for the struct under the cursor
+- ASCII map you can paste into reviews or docs
+- Pack score: how much of the struct is real data vs padding
 
 ### Export and Reporting
 
@@ -161,6 +195,7 @@ Access via Command Palette (`Ctrl+Shift+P` / `Cmd+Shift+P`):
 | Command | Description |
 |---------|-------------|
 | `Go: Show Memory Layout` | Display detailed memory breakdown for all structs |
+| `Go: Show Visual Memory Map` | Byte-level colored map + ASCII for the struct at cursor |
 | `Go: Optimize Struct Memory Layout` | Reorder fields in struct at cursor to minimize padding |
 | `Go: Toggle Architecture` | Switch between amd64, arm64, and 386 |
 | `Go: Export Memory Layout Report` | Export struct analysis to JSON/Markdown/CSV |
@@ -194,7 +229,13 @@ Customize via VS Code Settings (`Ctrl+,` / `Cmd+,`):
   "goMemoryVisualizer.paddingWarningThreshold": 8,
   
   // Show warnings for cache line boundary crossings
-  "goMemoryVisualizer.showCacheLineWarnings": true
+  "goMemoryVisualizer.showCacheLineWarnings": true,
+
+  // Ask before rewriting field order (shows before/after preview)
+  "goMemoryVisualizer.confirmBeforeOptimize": true,
+
+  // Size time.Time, sync.Mutex, atomic.*, etc. from known layouts
+  "goMemoryVisualizer.useKnownStdlibTypes": true
 }
 ```
 
@@ -207,6 +248,8 @@ Customize via VS Code Settings (`Ctrl+,` / `Cmd+,`):
 | `highlightPadding` | boolean | `true` | Highlight fields with padding waste |
 | `paddingWarningThreshold` | number | `8` | Min padding bytes to show warning |
 | `showCacheLineWarnings` | boolean | `true` | Warn about 64-byte cache line crossings |
+| `confirmBeforeOptimize` | boolean | `true` | Preview before rewriting field order |
+| `useKnownStdlibTypes` | boolean | `true` | Size time/sync/atomic/context from known layouts |
 
 ---
 
@@ -407,14 +450,9 @@ npm test
 
 **Test Coverage:**
 
-- 28 automated tests across 3 modules, all running on CI for Node 20 and 22
-- Memory calculator: alias chains, slices, complex64, channels, maps, funcs,
-  interfaces, array overflow guards, multi-architecture sizing
-- Go parser: alias blocks, embedded structs and pointers, nested structs,
-  anonymous inline struct fields, cache-line crossings, struct tags,
-  interface declarations
-- Struct optimizer: savings, no-op detection, grouped-field regression,
-  threshold behaviour, 386-specific savings, error-field sizing
+- 52 automated tests across parser, calculator, optimizer, diagnostics,
+  arch compare, memory map, and known stdlib types
+- CI runs compile, lint, and tests on Node 20 and 22
 
 ---
 
@@ -526,18 +564,18 @@ MIT License - see [LICENSE](LICENSE) file for details.
 - [x] Resource limits for workspace analyzer
 - [x] See [Security Advisory](https://1rhino2.github.io/go-memory-visualizer/security.html)
 
-### v1.0.0 - Released 2026-05-06
+### v1.1.0 - Released 2026-07-15
 
-- [x] Compiler-compatible slice header and `complex64` sizing
-- [x] Same-file type aliases and alias blocks
-- [x] Automated test suite with parser, calculator, and optimizer coverage
-- [x] Grouped field optimization regression fix
+- [x] Visual memory map (byte grid + ASCII)
+- [x] Pack score in status bar, CodeLens, and exports
+- [x] Optimize preview with confirm-before-rewrite
+- [x] Known stdlib type sizes (time, sync, atomic, context)
 
 ### Future
 
-- [ ] Union type support
+- [ ] Union / sum-type visualization helpers
 - [ ] Bitfield visualization
-- [ ] Visual memory map
+- [ ] Optional `unsafe.Sizeof` cross-check via gopls
 
 ---
 

@@ -2,7 +2,7 @@
   "name": "go-memory-visualizer",
   "displayName": "Go Memory Layout Visualizer",
   "description": "Real-time visualization of Go struct memory layout, padding, and alignment with optimization suggestions",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "publisher": "RhinoSoftware",
   "author": {
     "name": "RhinoSoftware"
@@ -64,6 +64,10 @@
         "title": "Go: Show Memory Layout"
       },
       {
+        "command": "goMemoryVisualizer.showMemoryMap",
+        "title": "Go: Show Visual Memory Map"
+      },
+      {
         "command": "goMemoryVisualizer.toggleArchitecture",
         "title": "Go: Toggle Architecture (amd64/arm64/386)"
       },
@@ -112,6 +116,16 @@
           "type": "boolean",
           "default": true,
           "description": "Show warnings when structs cross 64-byte cache line boundaries"
+        },
+        "goMemoryVisualizer.confirmBeforeOptimize": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show a before/after preview and ask before rewriting struct field order"
+        },
+        "goMemoryVisualizer.useKnownStdlibTypes": {
+          "type": "boolean",
+          "default": true,
+          "description": "Size common stdlib types (time.Time, sync.Mutex, atomic.*, context.Context) using known layouts instead of guessing pointer size"
         }
       }
     }
