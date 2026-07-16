@@ -14,10 +14,17 @@ import {
 import { compareStructAcrossArchs } from './archCompare';
 import { buildMemoryMap, renderAsciiMap, buildOptimizePreview } from './memoryMap';
 import { buildMemoryMapHtml, buildOptimizePreviewHtml } from './webviewHtml';
+import {
+  escapeHtml,
+  escapeMarkdown,
+  sanitizeCSVValue,
+  sanitizeMarkdownCell,
+  MAX_PARSE_BYTES
+} from './security';
 
 // Security constants
 const MAX_FILES = 1000;
-const MAX_FILE_SIZE = 1024 * 1024; // 1MB
+const MAX_FILE_SIZE = MAX_PARSE_BYTES;
 const MAX_RESULTS = 500;
 const VALID_ARCHS: Architecture[] = ['amd64', 'arm64', '386'];
 const DEBOUNCE_DELAY_MS = 250;
@@ -27,45 +34,6 @@ let currentArch: Architecture = 'amd64';
 
 // Debounce timeout handle
 let decorationDebounceTimer: NodeJS.Timeout | undefined;
-
-/**
- * Escapes HTML special characters to prevent XSS attacks
- * VULN-001, VULN-002: Fix DOM-based XSS
- */
-function escapeHtml(str: string): string {
-  return str.replace(/[&<>"']/g, c => {
-    const entities: Record<string, string> = {
-      '&': '&amp;',
-      '<': '&lt;',
-      '>': '&gt;',
-      '"': '&quot;',
-      "'": '&#39;'
-    };
-    return entities[c] || c;
-  });
-}
-
-/**
- * Escapes markdown special characters to prevent markdown injection
- * VULN-015, VULN-016: Fix markdown injection
- */
-function escapeMarkdown(str: string): string {
-  return str.replace(/[\\`*_{}[\]()#+\-.!|]/g, '\\$&');
-}
-
-/**
- * Sanitizes CSV values to prevent formula injection
- * VULN-004: Fix CSV injection
- */
-function sanitizeCSVValue(val: string): string {
-  let sanitized = val;
-  // Prefix with single quote if starts with formula characters
-  if (/^[=+\-@\t\r]/.test(sanitized)) {
-    sanitized = "'" + sanitized;
-  }
-  // Escape double quotes and wrap in quotes
-  return '"' + sanitized.replace(/"/g, '""') + '"';
-}
 
 const paddingDecorationType = vscode.window.createTextEditorDecorationType({
   backgroundColor: 'rgba(255, 165, 0, 0.3)',
@@ -262,7 +230,15 @@ function updateDecorations(editor: vscode.TextEditor, parser: GoParser) {
     return;
   }
 
-  const text = editor.document.getText();
+  const rawText = editor.document.getText();
+  // skip pathological files so keystroke debounce cannot freeze the host
+  if (rawText.length > MAX_FILE_SIZE) {
+    editor.setDecorations(annotationDecorationType, []);
+    editor.setDecorations(paddingDecorationType, []);
+    editor.setDecorations(cacheLineCrossDecorationType, []);
+    return;
+  }
+  const text = rawText;
   const structs = parser.parseStructs(text);
   
   const paddingRanges: vscode.DecorationOptions[] = [];
@@ -326,6 +302,17 @@ function updateDecorations(editor: vscode.TextEditor, parser: GoParser) {
   editor.setDecorations(cacheLineCrossDecorationType, cacheLineCrossRanges);
 }
 
+function parseEditorStructs(parser: GoParser, editor: vscode.TextEditor) {
+  const raw = editor.document.getText();
+  if (raw.length > MAX_FILE_SIZE) {
+    vscode.window.showWarningMessage(
+      `File exceeds ${Math.round(MAX_FILE_SIZE / 1024)}KB parse limit; open a smaller Go file or split it.`
+    );
+    return [] as ReturnType<GoParser['parseStructs']>;
+  }
+  return parser.parseStructs(raw);
+}
+
 async function optimizeStructCommand(parser: GoParser, optimizer: StructOptimizer) {
   const editor = vscode.window.activeTextEditor;
   if (!editor || editor.document.languageId !== 'go') {
@@ -334,8 +321,7 @@ async function optimizeStructCommand(parser: GoParser, optimizer: StructOptimize
   }
 
   const position = editor.selection.active;
-  const text = editor.document.getText();
-  const structs = parser.parseStructs(text);
+  const structs = parseEditorStructs(parser, editor);
 
   // Find struct containing cursor
   const struct = structs.find(s => 
@@ -398,8 +384,9 @@ async function optimizeStructCommand(parser: GoParser, optimizer: StructOptimize
     }
   }
 
+  const text = editor.document.getText();
   const optimized = optimizer.generateOptimizedCode(text, struct, result);
-  
+
   await editor.edit(editBuilder => {
     const fullRange = new vscode.Range(
       editor.document.positionAt(0),
@@ -427,8 +414,7 @@ function showMemoryMapCommand(parser: GoParser) {
     return;
   }
 
-  const text = editor.document.getText();
-  const structs = parser.parseStructs(text);
+  const structs = parseEditorStructs(parser, editor);
   if (structs.length === 0) {
     vscode.window.showInformationMessage('No structs found in current file');
     return;
@@ -463,8 +449,7 @@ function showMemoryLayoutCommand(parser: GoParser) {
     return;
   }
 
-  const text = editor.document.getText();
-  const structs = parser.parseStructs(text);
+  const structs = parseEditorStructs(parser, editor);
 
   if (structs.length === 0) {
     vscode.window.showInformationMessage('No structs found in current file');
@@ -570,8 +555,7 @@ async function exportLayoutCommand(parser: GoParser) {
     return;
   }
 
-  const text = editor.document.getText();
-  const structs = parser.parseStructs(text);
+  const structs = parseEditorStructs(parser, editor);
 
   if (structs.length === 0) {
     vscode.window.showInformationMessage('No structs found in current file');
@@ -685,7 +669,7 @@ function generateMarkdownReport(data: ExportFormat): string {
   md += `---\n\n`;
 
   for (const struct of data.structs) {
-    md += `## ${struct.name}\n\n`;
+    md += `## ${sanitizeMarkdownCell(struct.name)}\n\n`;
     md += `- **Total Size:** ${struct.totalSize} bytes\n`;
     md += `- **Alignment:** ${struct.alignment} bytes\n`;
     md += `- **Total Padding:** ${struct.totalPadding} bytes (${struct.paddingPercentage.toFixed(2)}%)\n`;
@@ -699,7 +683,7 @@ function generateMarkdownReport(data: ExportFormat): string {
     md += `|-------|------|--------|------|-----------|---------------|\n`;
     
     for (const field of struct.fields) {
-      md += `| ${field.name} | ${field.type} | ${field.offset} | ${field.size} | ${field.alignment} | ${field.paddingAfter} |\n`;
+      md += `| ${sanitizeMarkdownCell(field.name)} | ${sanitizeMarkdownCell(field.type)} | ${field.offset} | ${field.size} | ${field.alignment} | ${field.paddingAfter} |\n`;
     }
     
     md += `\n`;
@@ -930,26 +914,28 @@ class MemoryLayoutHoverProvider implements vscode.HoverProvider {
     document: vscode.TextDocument,
     position: vscode.Position
   ): vscode.ProviderResult<vscode.Hover> {
-    const text = document.getText();
-    const structs = this.parser.parseStructs(text);
+    const raw = document.getText();
+    if (raw.length > MAX_FILE_SIZE) {
+      return null;
+    }
+    const structs = this.parser.parseStructs(raw);
 
     for (const struct of structs) {
       const field = struct.fields.find(f => f.lineNumber === position.line);
-      
+
       if (field) {
         const markdown = new vscode.MarkdownString();
-        // VULN-015: Escape user-controlled content to prevent markdown injection
         const safeStructName = escapeMarkdown(struct.name);
         const safeFieldName = escapeMarkdown(field.name);
         const safeTypeName = escapeMarkdown(field.typeName);
-        
+
         markdown.appendMarkdown(`**${safeStructName}.${safeFieldName}**\n\n`);
         markdown.appendMarkdown(`Type: \`${safeTypeName}\`\n\n`);
         markdown.appendMarkdown(`Offset: ${field.offset} bytes\n\n`);
         markdown.appendMarkdown(`Size: ${field.size} bytes\n\n`);
         markdown.appendMarkdown(`Alignment: ${field.alignment} bytes\n\n`);
         markdown.appendMarkdown(`Cache Line: ${field.cacheLineStart}${field.crossesCacheLine ? `-${field.cacheLineEnd} ⚠️` : ''}\n\n`);
-        
+
         if (field.paddingAfter > 0) {
           markdown.appendMarkdown(`⚠️ Padding after: ${field.paddingAfter} bytes\n\n`);
         }
@@ -962,7 +948,7 @@ class MemoryLayoutHoverProvider implements vscode.HoverProvider {
           markdown.appendMarkdown(`- False sharing in concurrent code\n`);
           markdown.appendMarkdown(`- Reduced cache efficiency\n`);
         }
-        
+
         return new vscode.Hover(markdown);
       }
     }
@@ -978,7 +964,11 @@ class OptimizationCodeLensProvider implements vscode.CodeLensProvider {
   ) {}
 
   provideCodeLenses(document: vscode.TextDocument): vscode.ProviderResult<vscode.CodeLens[]> {
-    const text = document.getText();
+    const raw = document.getText();
+    if (raw.length > MAX_FILE_SIZE) {
+      return [];
+    }
+    const text = raw;
     const structs = this.parser.parseStructs(text);
     const lenses: vscode.CodeLens[] = [];
 
@@ -1014,7 +1004,11 @@ class OptimizationCodeActionProvider implements vscode.CodeActionProvider {
     document: vscode.TextDocument,
     range: vscode.Range
   ): vscode.ProviderResult<vscode.CodeAction[]> {
-    const structs = this.parser.parseStructs(document.getText());
+    const raw = document.getText();
+    if (raw.length > MAX_FILE_SIZE) {
+      return [];
+    }
+    const structs = this.parser.parseStructs(raw);
     const actions: vscode.CodeAction[] = [];
 
     for (const struct of structs) {
@@ -1110,8 +1104,7 @@ async function compareArchitecturesCommand(parser: GoParser) {
     return;
   }
 
-  const text = editor.document.getText();
-  const structs = parser.parseStructs(text);
+  const structs = parseEditorStructs(parser, editor);
   const struct = structs.find(s =>
     editor.selection.active.line >= s.lineNumber &&
     editor.selection.active.line <= s.endLineNumber
@@ -1121,7 +1114,7 @@ async function compareArchitecturesCommand(parser: GoParser) {
     return;
   }
 
-  const comparison = compareStructAcrossArchs(text, struct.name);
+  const comparison = compareStructAcrossArchs(editor.document.getText(), struct.name);
   if (!comparison) {
     vscode.window.showErrorMessage(`Could not compare ${struct.name} across architectures`);
     return;

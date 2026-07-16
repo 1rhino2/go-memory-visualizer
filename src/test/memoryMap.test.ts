@@ -41,6 +41,7 @@ type User struct {
   assert.equal(map.cells[8].kind, 'field');
   assert.equal(map.cells[8].fieldName, 'ID');
   assert.ok(map.packScore < 100);
+  assert.equal(map.truncated, false);
 });
 
 test('renderAsciiMap includes legend and padding dots', () => {

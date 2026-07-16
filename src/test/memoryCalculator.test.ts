@@ -81,11 +81,12 @@ test('arrays compute size from element size and count', () => {
   assert.deepEqual(calculator.getTypeInfo('[3]complex64'), { size: 24, alignment: 4 });
 });
 
-test('caps absurd array sizes to MAX_SAFE_INTEGER without crashing', () => {
+test('caps absurd array sizes without crashing or claiming MAX_SAFE_INTEGER', () => {
   const calculator = new MemoryCalculator('amd64');
-  // count * 8 > MAX_SAFE_INTEGER triggers the overflow guard
+  // formerly returned MAX_SAFE_INTEGER and could OOM the memory map UI
   const big = calculator.getTypeInfo('[2000000000000000]int64');
-  assert.equal(big.size, Number.MAX_SAFE_INTEGER);
+  assert.ok(big.size <= 1_048_576 * 8);
+  assert.ok(Number.isFinite(big.size));
   assert.equal(big.alignment, 8);
 });
 

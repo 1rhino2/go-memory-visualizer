@@ -1,4 +1,5 @@
 import { MemoryMap, OptimizePreview } from './memoryMap';
+import { escapeHtml } from './security';
 
 // Solid palette - no gradients. Distinct enough to tell fields apart.
 const FIELD_COLORS = [
@@ -15,19 +16,6 @@ const FIELD_COLORS = [
 ];
 
 const PAD_COLOR = '#4a4a4a';
-
-function escapeHtml(str: string): string {
-  return str.replace(/[&<>"']/g, c => {
-    const entities: Record<string, string> = {
-      '&': '&amp;',
-      '<': '&lt;',
-      '>': '&gt;',
-      '"': '&quot;',
-      "'": '&#39;'
-    };
-    return entities[c] || c;
-  });
-}
 
 function cellColor(colorIndex: number, kind: string): string {
   if (kind === 'padding') {
@@ -112,6 +100,7 @@ export function buildMemoryMapHtml(map: MemoryMap, ascii: string): string {
       <span class="stat">size <b>${map.totalSize}B</b></span>
       <span class="stat">padding <b>${map.totalPadding}B</b></span>
       <span class="stat">pack score <b>${map.packScore}%</b></span>
+      ${map.truncated ? '<span class="stat">map <b>truncated</b> (huge struct)</span>' : ''}
     </div>
     <div class="legend">${legendHtml}</div>
     <div class="grid">${gridHtml}</div>

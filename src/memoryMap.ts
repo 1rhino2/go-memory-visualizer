@@ -1,4 +1,5 @@
 import { FieldInfo, StructInfo, CACHE_LINE_SIZE } from './types';
+import { MAX_MEMORY_MAP_BYTES } from './security';
 
 export type MapCellKind = 'field' | 'padding' | 'empty';
 
@@ -19,6 +20,8 @@ export interface MemoryMap {
   cells: MemoryMapCell[];
   // one row per cache line for nicer rendering
   rows: MemoryMapCell[][];
+  // true when we capped cells to avoid OOM on huge arrays
+  truncated: boolean;
 }
 
 export interface OptimizePreview {
@@ -46,7 +49,11 @@ export function buildMemoryMap(struct: StructInfo): MemoryMap {
   const colorByField = new Map<string, number>();
   let nextColor = 0;
 
-  for (let offset = 0; offset < struct.totalSize; offset++) {
+  // never allocate one cell per byte for multi-MB structs
+  const mapSize = Math.min(Math.max(0, struct.totalSize), MAX_MEMORY_MAP_BYTES);
+  const truncated = struct.totalSize > MAX_MEMORY_MAP_BYTES;
+
+  for (let offset = 0; offset < mapSize; offset++) {
     const owner = findFieldAt(struct.fields, offset);
     if (owner) {
       if (!colorByField.has(owner.name)) {
@@ -78,7 +85,8 @@ export function buildMemoryMap(struct: StructInfo): MemoryMap {
     totalPadding: struct.totalPadding,
     packScore: computePackScore(struct.totalSize, struct.totalPadding),
     cells,
-    rows
+    rows,
+    truncated
   };
 }
 
@@ -95,6 +103,9 @@ function findFieldAt(fields: FieldInfo[], offset: number): FieldInfo | undefined
 export function renderAsciiMap(map: MemoryMap, bytesPerRow: number = 16): string {
   const lines: string[] = [];
   lines.push(`${map.structName}  ${map.totalSize}B  pack ${map.packScore}%  pad ${map.totalPadding}B`);
+  if (map.truncated) {
+    lines.push(`(map truncated to first ${map.cells.length} bytes)`);
+  }
   lines.push('');
 
   const legend = new Map<string, string>();

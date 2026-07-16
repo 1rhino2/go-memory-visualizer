@@ -2,6 +2,17 @@
 
 All notable changes to the Go Memory Layout Visualizer extension will be documented in this file.
 
+## [1.1.1] - 2026-07-15
+
+### Security
+
+- Cap per-byte memory map rendering (4096B) so huge array structs cannot OOM the extension host.
+- Cap Go array element counts used in size math (1Mi elements).
+- Cap open-file parse size (1MB) for decorations, CodeLens, hover, and commands.
+- Cap fields collected per struct (2000) and type-name length (512).
+- Sanitize markdown export table cells (pipes, newlines, formula prefixes).
+- Shared `security.ts` helpers for HTML/CSV/markdown escaping; regression tests added.
+
 ## [1.1.0] - 2026-07-15
 
 ### Added

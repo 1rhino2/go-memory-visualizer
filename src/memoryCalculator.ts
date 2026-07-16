@@ -136,7 +136,17 @@ export class MemoryCalculator {
             const count = parseInt(match[1], 10);
             const elemType = match[2];
             const elemInfo = this.getTypeInfo(elemType, seen);
-            // VULN-014: Prevent integer overflow
+            // hard cap element count - huge arrays used to OOM the memory map UI
+            const MAX_ARRAY_ELEMENTS = 1_048_576;
+            if (!Number.isFinite(count) || count < 0) {
+              return { size: ptrSize, alignment: ptrSize };
+            }
+            if (count > MAX_ARRAY_ELEMENTS) {
+              return {
+                size: MAX_ARRAY_ELEMENTS * elemInfo.size,
+                alignment: elemInfo.alignment
+              };
+            }
             const maxSafeSize = Number.MAX_SAFE_INTEGER / 8;
             if (count > maxSafeSize || count * elemInfo.size > Number.MAX_SAFE_INTEGER) {
               return { size: Number.MAX_SAFE_INTEGER, alignment: elemInfo.alignment };

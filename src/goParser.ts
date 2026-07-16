@@ -1,6 +1,7 @@
 import { StructInfo, FieldInfo, Architecture, CacheLineInfo, CACHE_LINE_SIZE } from './types';
 import { MemoryCalculator } from './memoryCalculator';
 import { computePackScore } from './memoryMap';
+import { MAX_STRUCT_FIELDS } from './security';
 
 /**
  * Parser for Go struct definitions
@@ -176,8 +177,15 @@ export class GoParser {
 
       if (fieldMatch) {
         const names = fieldMatch[1].split(',').map(n => n.trim());
-        const typeName = fieldMatch[2].trim();
+        // strip trailing junk / tags leftovers; keep type text bounded
+        let typeName = fieldMatch[2].trim();
+        if (typeName.length > 512) {
+          typeName = typeName.slice(0, 512);
+        }
         for (const name of names) {
+          if (fields.length >= MAX_STRUCT_FIELDS) {
+            return { fields, endIndex: i };
+          }
           if (withLineNumbers) {
             fields.push({ name, typeName, lineNumber: i });
           } else {
@@ -185,6 +193,9 @@ export class GoParser {
           }
         }
       } else if (embeddedMatch) {
+        if (fields.length >= MAX_STRUCT_FIELDS) {
+          return { fields, endIndex: i };
+        }
         const typeName = embeddedMatch[1].trim();
         const fieldName = typeName.startsWith('*') ? typeName.substring(1) : typeName;
         if (withLineNumbers) {
