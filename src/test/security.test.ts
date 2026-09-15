@@ -49,7 +49,7 @@ test('optimize preview HTML escapes field order names', () => {
     {
       name: 'X<img>',
       fields: [
-        { name: 'A<script>', typeName: 'int', offset: 0, size: 8, alignment: 8, lineNumber: 0, paddingAfter: 0, cacheLineStart: 0, cacheLineEnd: 0, crossesCacheLine: false }
+        { name: 'A<script>', typeName: 'int', offset: 0, size: 8, alignment: 8, lineNumber: 0, paddingAfter: 0, cacheLineStart: 0, cacheLineEnd: 0, crossesCacheLine: false, endLineNumber: 0 }
       ],
       totalSize: 8,
       totalPadding: 0,

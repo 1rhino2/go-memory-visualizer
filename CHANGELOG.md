@@ -2,6 +2,66 @@
 
 All notable changes to the Go Memory Layout Visualizer extension will be documented in this file.
 
+## [1.1.2] - 2026-09-15
+
+### Fixed
+
+Layout math (every case below was checked against `go/types` on amd64 and 386):
+
+- 386: `int64`, `uint64`, `float64`, `complex128` and `time.Duration` now
+  align to 4 bytes, matching the Go compiler. Every 386 result in the
+  bundled examples was wrong before this.
+- A non-empty struct whose last field is zero-sized (`struct{}`, `[0]byte`)
+  now gets the extra padding byte Go adds.
+- `struct{}` and inline `interface{ ... }` field types are sized (0 and 2
+  words) instead of guessing pointer width.
+- Known stdlib table: `atomic.Bool` is 4 bytes (was 1), `sync.WaitGroup` is
+  16 on 386 too, `sync.Cond` is 56/32 (was 32/24), `time.Time` aligns to 4
+  on 386, and generic instantiations like `atomic.Pointer[T]` are matched.
+- Zero-size fields sitting on a cache line boundary are no longer flagged as
+  crossing it.
+
+Parser:
+
+- A one-line interface declaration (`type Stringer interface{ String() string }`)
+  put the parser into an infinite loop and froze the extension host.
+- One-line declarations (`type Empty struct{}`, `type P struct{ X, Y int }`)
+  no longer swallow the following declaration as if it were their body.
+- Structs declared inside a `type ( ... )` group are analyzed and sized.
+- Embedded qualified and generic types (`sync.Mutex`, `*bytes.Buffer`,
+  `Base[T]`) are kept instead of silently dropped.
+- One-line anonymous struct fields (`Meta struct{ A int32 }`) no longer eat
+  the rest of the parent struct.
+- Generic struct declarations (`type Box[T any] struct`) are parsed.
+- `/* ... */` block comments inside struct bodies are ignored.
+
+Optimize rewrite:
+
+- Field reordering is index based, so a struct with several `_` padding
+  fields keeps all of them (the second one used to be deleted).
+- Comment lines directly above a field move with it instead of vanishing.
+- Multi-line anonymous struct fields are moved whole; the inner body and
+  closing brace used to be dropped, leaving unbalanced braces.
+- One-line structs are rewritten in place.
+- Zero-size fields are ordered first so the trailing padding rule cannot
+  make the "optimized" layout larger.
+
+Extension:
+
+- CodeLens and Quick Fix pass the struct's line to the optimize command, so
+  clicking a lens rewrites that struct rather than whichever one holds the
+  cursor.
+- Toggling the architecture refreshes the Problems panel and status bar, not
+  only the inline decorations.
+- Diagnostics and the status bar are debounced together with decorations
+  and skip files over the 1MB parse cap, instead of re-parsing on every
+  keystroke.
+- Turning off `showInlineAnnotations` clears the annotations and keeps the
+  padding and cache-line highlights, which it used to disable as well.
+- Any `goMemoryVisualizer.*` setting change re-renders, not only the
+  stdlib toggle.
+- Compare Architectures honours `useKnownStdlibTypes`.
+
 ## [1.1.1] - 2026-07-15
 
 ### Security

@@ -35,6 +35,10 @@ let currentArch: Architecture = 'amd64';
 // Debounce timeout handle
 let decorationDebounceTimer: NodeJS.Timeout | undefined;
 
+// set in activate; lets commands outside the closure (arch toggle) refresh
+// the Problems panel and status bar too
+let refreshDiagnosticsAndStatus: (document: vscode.TextDocument | undefined) => void = () => {};
+
 const paddingDecorationType = vscode.window.createTextEditorDecorationType({
   backgroundColor: 'rgba(255, 165, 0, 0.3)',
   border: '1px solid rgba(255, 165, 0, 0.5)',
@@ -76,8 +80,8 @@ export function activate(context: vscode.ExtensionContext) {
 
   // Register commands
   context.subscriptions.push(
-    vscode.commands.registerCommand('goMemoryVisualizer.optimizeStruct', () => {
-      optimizeStructCommand(parser, optimizer);
+    vscode.commands.registerCommand('goMemoryVisualizer.optimizeStruct', (line?: number) => {
+      optimizeStructCommand(parser, optimizer, typeof line === 'number' ? line : undefined);
     })
   );
 
@@ -144,20 +148,28 @@ export function activate(context: vscode.ExtensionContext) {
   statusBarItem.command = 'goMemoryVisualizer.showMemoryLayout';
   context.subscriptions.push(statusBarItem);
 
-  const refreshDiagnosticsAndStatus = (document: vscode.TextDocument | undefined) => {
+  refreshDiagnosticsAndStatus = (document: vscode.TextDocument | undefined) => {
     if (!document || document.languageId !== 'go') {
       statusBarItem.hide();
       return;
     }
-    const structs = parser.parseStructs(document.getText());
+    const raw = document.getText();
+    // same cap as decorations, otherwise a huge file still gets parsed on
+    // every keystroke through this path
+    if (raw.length > MAX_FILE_SIZE) {
+      diagnosticCollection.delete(document.uri);
+      statusBarItem.hide();
+      return;
+    }
+    const structs = parser.parseStructs(raw);
     publishDiagnostics(diagnosticCollection, document, structs, optimizer);
     updateStatusBar(statusBarItem, structs, optimizer);
   };
 
-  // keep known-types toggle live without reload
+  // any of our settings changing should re-render, not just the stdlib one
   context.subscriptions.push(
     vscode.workspace.onDidChangeConfiguration(event => {
-      if (event.affectsConfiguration('goMemoryVisualizer.useKnownStdlibTypes')) {
+      if (event.affectsConfiguration('goMemoryVisualizer')) {
         const fresh = vscode.workspace.getConfiguration('goMemoryVisualizer');
         parser.getCalculator().setUseKnownTypes(Boolean(fresh.get('useKnownStdlibTypes', true)));
         if (vscode.window.activeTextEditor?.document.languageId === 'go') {
@@ -173,8 +185,9 @@ export function activate(context: vscode.ExtensionContext) {
     vscode.window.onDidChangeActiveTextEditor(editor => {
       if (editor && editor.document.languageId === 'go') {
         debouncedUpdateDecorations(editor, parser);
+      } else {
+        refreshDiagnosticsAndStatus(editor?.document);
       }
-      refreshDiagnosticsAndStatus(editor?.document);
     })
   );
 
@@ -184,7 +197,6 @@ export function activate(context: vscode.ExtensionContext) {
       if (editor && event.document === editor.document && editor.document.languageId === 'go') {
         // VULN-017: Debounce to prevent race conditions and CPU spike
         debouncedUpdateDecorations(editor, parser);
-        refreshDiagnosticsAndStatus(editor.document);
       }
     })
   );
@@ -220,15 +232,15 @@ function debouncedUpdateDecorations(editor: vscode.TextEditor, parser: GoParser)
     clearTimeout(decorationDebounceTimer);
   }
   decorationDebounceTimer = setTimeout(() => {
+    decorationDebounceTimer = undefined;
     updateDecorations(editor, parser);
+    refreshDiagnosticsAndStatus(editor.document);
   }, DEBOUNCE_DELAY_MS);
 }
 
 function updateDecorations(editor: vscode.TextEditor, parser: GoParser) {
   const config = vscode.workspace.getConfiguration('goMemoryVisualizer');
-  if (!config.get('showInlineAnnotations', true)) {
-    return;
-  }
+  const showAnnotations = config.get('showInlineAnnotations', true);
 
   const rawText = editor.document.getText();
   // skip pathological files so keystroke debounce cannot freeze the host
@@ -251,23 +263,29 @@ function updateDecorations(editor: vscode.TextEditor, parser: GoParser) {
 
   for (const struct of structs) {
     for (const field of struct.fields) {
+      if (field.lineNumber >= editor.document.lineCount) {
+        continue;
+      }
       const line = editor.document.lineAt(field.lineNumber);
       
       // Build the inline annotation text with cache line info
       const cacheLineTag = field.crossesCacheLine ? ` [L${field.cacheLineStart}-${field.cacheLineEnd}]` : ` [L${field.cacheLineStart}]`;
-      const annotation = `[${field.offset}-${field.offset + field.size - 1}] ${field.size}B${cacheLineTag}`;
+      const byteRange = field.size > 0 ? `[${field.offset}-${field.offset + field.size - 1}]` : `[${field.offset}]`;
+      const annotation = `${byteRange} ${field.size}B${cacheLineTag}`;
       const paddingInfo = field.paddingAfter > 0 ? ` +${field.paddingAfter}B pad` : '';
       
-      annotations.push({
-        range: new vscode.Range(field.lineNumber, 0, field.lineNumber, 0),
-        renderOptions: {
-          before: {
-            contentText: `  ${annotation}${paddingInfo}  `,
-            color: field.paddingAfter >= paddingThreshold ? '#ff6b6b' : 
-                   field.crossesCacheLine ? '#ffaa00' : '#888',
+      if (showAnnotations) {
+        annotations.push({
+          range: new vscode.Range(field.lineNumber, 0, field.lineNumber, 0),
+          renderOptions: {
+            before: {
+              contentText: `  ${annotation}${paddingInfo}  `,
+              color: field.paddingAfter >= paddingThreshold ? '#ff6b6b' :
+                     field.crossesCacheLine ? '#ffaa00' : '#888',
+            }
           }
-        }
-      });
+        });
+      }
 
       // Highlight padding
       if (config.get('highlightPadding', true) && field.paddingAfter >= paddingThreshold) {
@@ -313,19 +331,19 @@ function parseEditorStructs(parser: GoParser, editor: vscode.TextEditor) {
   return parser.parseStructs(raw);
 }
 
-async function optimizeStructCommand(parser: GoParser, optimizer: StructOptimizer) {
+async function optimizeStructCommand(parser: GoParser, optimizer: StructOptimizer, targetLine?: number) {
   const editor = vscode.window.activeTextEditor;
   if (!editor || editor.document.languageId !== 'go') {
     vscode.window.showErrorMessage('Please open a Go file');
     return;
   }
 
-  const position = editor.selection.active;
+  const line = targetLine ?? editor.selection.active.line;
   const structs = parseEditorStructs(parser, editor);
 
-  // Find struct containing cursor
-  const struct = structs.find(s => 
-    position.line >= s.lineNumber && position.line <= s.endLineNumber
+  // Find struct containing cursor (or the line the lens / quick fix passed)
+  const struct = structs.find(s =>
+    line >= s.lineNumber && line <= s.endLineNumber
   );
 
   if (!struct) {
@@ -335,7 +353,7 @@ async function optimizeStructCommand(parser: GoParser, optimizer: StructOptimize
 
   const result = optimizer.optimizeStruct(struct);
   
-  if (result.bytesSaved === 0) {
+  if (result.bytesSaved <= 0) {
     vscode.window.showInformationMessage(`Struct ${struct.name} is already optimally ordered`);
     return;
   }
@@ -542,6 +560,7 @@ async function toggleArchitectureCommand(parser: GoParser) {
     
     if (vscode.window.activeTextEditor?.document.languageId === 'go') {
       updateDecorations(vscode.window.activeTextEditor, parser);
+      refreshDiagnosticsAndStatus(vscode.window.activeTextEditor.document);
     }
     
     vscode.window.showInformationMessage(`Architecture set to ${selected}`);
@@ -981,7 +1000,7 @@ class OptimizationCodeLensProvider implements vscode.CodeLensProvider {
         const lens = new vscode.CodeLens(range, {
           title: `Optimize Layout (save ${result.bytesSaved}B · pack ${struct.packScore}%)`,
           command: 'goMemoryVisualizer.optimizeStruct',
-          arguments: []
+          arguments: [struct.lineNumber]
         });
         
         lenses.push(lens);
@@ -1026,7 +1045,8 @@ class OptimizationCodeActionProvider implements vscode.CodeActionProvider {
       );
       action.command = {
         command: 'goMemoryVisualizer.optimizeStruct',
-        title: 'Optimize Struct Memory Layout'
+        title: 'Optimize Struct Memory Layout',
+        arguments: [struct.lineNumber]
       };
       action.isPreferred = true;
       actions.push(action);
@@ -1114,7 +1134,12 @@ async function compareArchitecturesCommand(parser: GoParser) {
     return;
   }
 
-  const comparison = compareStructAcrossArchs(editor.document.getText(), struct.name);
+  const comparison = compareStructAcrossArchs(
+    editor.document.getText(),
+    struct.name,
+    undefined,
+    parser.getCalculator().getUseKnownTypes()
+  );
   if (!comparison) {
     vscode.window.showErrorMessage(`Could not compare ${struct.name} across architectures`);
     return;

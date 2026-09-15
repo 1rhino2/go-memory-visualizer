@@ -37,6 +37,10 @@ export class MemoryCalculator {
     this.useKnownTypes = enabled;
   }
 
+  getUseKnownTypes(): boolean {
+    return this.useKnownTypes;
+  }
+
   setArchitecture(arch: Architecture): void {
     this.arch = arch;
   }
@@ -71,6 +75,8 @@ export class MemoryCalculator {
    */
   getTypeInfo(typeName: string, seen: Set<string> = new Set()): TypeSizeInfo {
     const ptrSize = this.getPointerSize();
+    // 386 aligns 64-bit scalars to 4, not 8 (see unsafe.Alignof docs)
+    const align64 = this.arch === '386' ? 4 : 8;
     
     // VULN-018: Detect circular struct references
     if (seen.has(typeName)) {
@@ -105,13 +111,13 @@ export class MemoryCalculator {
       case 'int64':
       case 'uint64':
       case 'float64':
-        return { size: 8, alignment: 8 };
+        return { size: 8, alignment: align64 };
 
       case 'complex64':
         return { size: 8, alignment: 4 };
       
       case 'complex128':
-        return { size: 16, alignment: 8 };
+        return { size: 16, alignment: align64 };
       
       case 'int':
       case 'uint':
@@ -166,8 +172,11 @@ export class MemoryCalculator {
         ) {
           return { size: ptrSize, alignment: ptrSize };
         }
-        if (typeName === 'interface{}' || typeName === 'any') {
+        if (typeName === 'interface{}' || typeName === 'any' || /^interface\s*\{/.test(typeName)) {
           return { size: ptrSize * 2, alignment: ptrSize };
+        }
+        if (/^struct\s*\{\s*\}$/.test(typeName)) {
+          return { size: 0, alignment: 1 };
         }
         // Named interfaces (e.g. error, io.Reader, custom interfaces) are
         // 2-word values: type pointer + data pointer.
@@ -248,6 +257,13 @@ export class MemoryCalculator {
       fieldOffsets.push(alignedOffset);
       currentOffset = alignedOffset + typeInfo.size;
       paddings.push(paddingBefore);
+    }
+
+    // Go pads a non-empty struct whose last field is zero-sized by one byte
+    // so &lastField can never point at the next object in the heap.
+    const last = fields[fields.length - 1];
+    if (currentOffset > 0 && this.getTypeInfo(last.typeName, new Set(seen)).size === 0) {
+      currentOffset++;
     }
 
     // Align the total struct size to its alignment

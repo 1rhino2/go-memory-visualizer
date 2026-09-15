@@ -21,6 +21,9 @@ export interface FieldInfo {
   size: number;
   alignment: number;
   lineNumber: number;
+  // last line of the field decl, same as lineNumber unless it is a
+  // multi-line anonymous struct
+  endLineNumber: number;
   paddingAfter: number;
   cacheLineStart: number;   // which cache line field starts in
   cacheLineEnd: number;     // which cache line field ends in
@@ -52,6 +55,9 @@ export interface OptimizationResult {
   optimizedSize: number;
   bytesSaved: number;
   reorderedFields: string[];
+  // indices into struct.fields in the new order. names alone are ambiguous
+  // once a struct has more than one `_` field
+  reorderedIndices: number[];
   optimizedPadding: number;
 }
 

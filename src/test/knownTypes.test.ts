@@ -7,8 +7,8 @@ import { GoParser } from '../goParser';
 test('time.Time is 24B on amd64 and 20B on 386', () => {
   // amd64: 8+8+8 = 24
   assert.deepEqual(getKnownTypeInfo('time.Time', 'amd64'), { size: 24, alignment: 8 });
-  // 386: 8+8+4 = 20
-  assert.deepEqual(getKnownTypeInfo('time.Time', '386'), { size: 20, alignment: 8 });
+  // 386: 8+8+4 = 20, and int64 only aligns to 4 there
+  assert.deepEqual(getKnownTypeInfo('time.Time', '386'), { size: 20, alignment: 4 });
 });
 
 test('sync.Mutex and atomic.Int64 have stable sizes', () => {

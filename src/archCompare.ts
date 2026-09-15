@@ -22,12 +22,14 @@ const ALL_ARCHS: ReadonlyArray<Architecture> = ['amd64', 'arm64', '386'];
 export function compareStructAcrossArchs(
   source: string,
   structName: string,
-  archs: ReadonlyArray<Architecture> = ALL_ARCHS
+  archs: ReadonlyArray<Architecture> = ALL_ARCHS,
+  useKnownTypes: boolean = true
 ): ArchComparison | undefined {
   const layouts: ArchLayout[] = [];
 
   for (const arch of archs) {
     const parser = new GoParser(arch);
+    parser.getCalculator().setUseKnownTypes(useKnownTypes);
     const structs = parser.parseStructs(source);
     const target = structs.find(s => s.name === structName);
     if (!target) {

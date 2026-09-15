@@ -13,19 +13,29 @@ function ptr(arch: Architecture): number {
   return arch === '386' ? 4 : 8;
 }
 
+// plain int64/uint64 only get 4-byte alignment on 386. atomic.* 64-bit
+// types are the exception, they carry align64 and stay 8-aligned everywhere.
+function align64(arch: Architecture): number {
+  return arch === '386' ? 4 : 8;
+}
+
 export function getKnownTypeInfo(
   typeName: string,
   arch: Architecture
 ): KnownTypeInfo | undefined {
   const p = ptr(arch);
+  const a64 = align64(arch);
 
-  switch (typeName) {
+  // generic instantiations like atomic.Pointer[T]
+  const base = typeName.replace(/\[.*\]$/, '');
+
+  switch (base) {
     // time
     case 'time.Time':
       // wall uint64 + ext int64 + loc *Location
-      return { size: 8 + 8 + p, alignment: 8 };
+      return { size: 8 + 8 + p, alignment: a64 };
     case 'time.Duration':
-      return { size: 8, alignment: 8 };
+      return { size: 8, alignment: a64 };
     case 'time.Location':
       // not usually embedded by value, but if it is treat as opaque pointer-ish
       return { size: p, alignment: p };
@@ -39,19 +49,20 @@ export function getKnownTypeInfo(
       // 8 + 4 + 4 + 4 + 4 = 24 on both arches (no pointers)
       return { size: 24, alignment: 4 };
     case 'sync.WaitGroup':
-      // state atomic.Uint64 + sema uint32 + pad
-      return { size: arch === '386' ? 12 : 16, alignment: 8 };
+      // state atomic.Uint64 (align64 on every arch) + sema uint32 + pad
+      return { size: 16, alignment: 8 };
     case 'sync.Once':
       // done uint32 + m Mutex
       return { size: 12, alignment: 4 };
     case 'sync.Cond':
-      // noCopy + Locker iface + notifyList + checker
-      // Locker is 2 words; keep this conservative
-      return { size: p * 2 + 16, alignment: p };
+      // noCopy + L Locker (2 words) + notifyList (2 uint32 + uintptr + 2 ptrs)
+      // + checker uintptr
+      return { size: p * 2 + 8 + p * 3 + p, alignment: p };
 
     // atomic
     case 'atomic.Bool':
-      return { size: 1, alignment: 1 };
+      // noCopy + v uint32
+      return { size: 4, alignment: 4 };
     case 'atomic.Int32':
     case 'atomic.Uint32':
       return { size: 4, alignment: 4 };
