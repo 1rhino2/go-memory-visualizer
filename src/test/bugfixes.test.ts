@@ -242,3 +242,86 @@ type (
   assert.deepEqual(structs.map(s => s.name), ['T']);
   assert.equal(structs[0].totalSize, 40);
 });
+
+test('array length from a same-file const is resolved', () => {
+  const structs = parse(`const maxLen = 16
+
+const (
+	keySize     = 32
+	nonceSize int = 12
+	computed = keySize * 2
+)
+
+type T struct {
+	Name  [maxLen]byte
+	Key   [keySize]byte
+	Nonce [nonceSize]byte
+	B     bool
+}`);
+  const [t] = structs;
+  assert.equal(t.fields[0].size, 16);
+  assert.equal(t.fields[1].size, 32);
+  assert.equal(t.fields[2].size, 12);
+  assert.equal(t.totalSize, 61);
+
+  // unknown const still falls back to pointer width like before
+  const [u] = parse(`type U struct {
+	Buf [unknownLen]byte
+}`);
+  assert.equal(u.fields[0].size, 8);
+});
+
+test('common stdlib interfaces size as 2 words', () => {
+  const [t] = parse(`type T struct {
+	R io.Reader
+	S fmt.Stringer
+	H http.Handler
+	B bool
+}`);
+  assert.equal(t.fields[0].size, 16);
+  assert.equal(t.fields[1].size, 16);
+  assert.equal(t.fields[2].size, 16);
+  assert.equal(t.totalSize, 56);
+});
+
+test('memory map keeps repeated _ fields distinct', () => {
+  const [t] = parse(`type T struct {
+	_ [4]byte
+	A int32
+	_ [8]byte
+}`);
+  const { buildMemoryMap, renderAsciiMap } = require('../memoryMap') as typeof import('../memoryMap');
+  const map = buildMemoryMap(t);
+  const first = map.cells[0];
+  const third = map.cells[8];
+  assert.equal(first.fieldName, '_');
+  assert.equal(third.fieldName, '_');
+  assert.notEqual(first.colorIndex, third.colorIndex);
+  const ascii = renderAsciiMap(map);
+  assert.ok(ascii.includes('A=_'), ascii);
+  assert.ok(ascii.includes('C=_'), ascii);
+});
+
+test('field cap stops recording but still finds the closing brace', () => {
+  const body = '\tF int64\n'.repeat(2500);
+  const src = `type T struct {\n${body}}\ntype After struct {\n\tB bool\n}`;
+  const structs = parse(src);
+  assert.equal(structs.length, 2);
+  assert.equal(structs[0].fields.length, 2000);
+  assert.equal(structs[0].endLineNumber, 2501);
+  assert.equal(structs[1].name, 'After');
+});
+
+test('rewrite only changes the struct block (line delta is zero)', () => {
+  const src = `package x\n\ntype T struct {\n\tA bool\n\tB int64\n}\n\nfunc f() {}\n`;
+  const parser = new GoParser('amd64');
+  const [t] = parser.parseStructs(src);
+  const optimizer = new StructOptimizer(parser.getCalculator());
+  const out = optimizer.generateOptimizedCode(src, t, optimizer.optimizeStruct(t));
+  const oldLines = src.split('\n');
+  const newLines = out.split('\n');
+  assert.equal(newLines.length, oldLines.length);
+  assert.deepEqual(newLines.slice(0, t.lineNumber), oldLines.slice(0, t.lineNumber));
+  assert.deepEqual(newLines.slice(t.endLineNumber + 1), oldLines.slice(t.endLineNumber + 1));
+  assert.deepEqual(newLines.slice(t.lineNumber, t.endLineNumber + 1), ['type T struct {', '\tB int64', '\tA bool', '}']);
+});

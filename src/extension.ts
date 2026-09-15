@@ -233,6 +233,11 @@ function debouncedUpdateDecorations(editor: vscode.TextEditor, parser: GoParser)
   }
   decorationDebounceTimer = setTimeout(() => {
     decorationDebounceTimer = undefined;
+    // editor can be closed before the timer fires; setDecorations on a
+    // disposed editor throws
+    if (!vscode.window.visibleTextEditors.includes(editor)) {
+      return;
+    }
     updateDecorations(editor, parser);
     refreshDiagnosticsAndStatus(editor.document);
   }, DEBOUNCE_DELAY_MS);
@@ -256,9 +261,8 @@ function updateDecorations(editor: vscode.TextEditor, parser: GoParser) {
   const paddingRanges: vscode.DecorationOptions[] = [];
   const annotations: vscode.DecorationOptions[] = [];
   const cacheLineCrossRanges: vscode.DecorationOptions[] = [];
-  // VULN-022: Validate paddingWarningThreshold is a positive number
-  const rawThreshold = config.get('paddingWarningThreshold', 8);
-  const paddingThreshold = Math.max(0, Number(rawThreshold) || 8);
+  // VULN-022: Validate paddingWarningThreshold is a non-negative number
+  const paddingThreshold = readPaddingThreshold(config);
   const showCacheLineWarnings = config.get('showCacheLineWarnings', true);
 
   for (const struct of structs) {
@@ -298,17 +302,16 @@ function updateDecorations(editor: vscode.TextEditor, parser: GoParser) {
       // Highlight cache line crossings
       if (showCacheLineWarnings && field.crossesCacheLine) {
         // VULN-016: Escape field name to prevent markdown injection
-        const safeFieldName = escapeMarkdown(field.name);
         cacheLineCrossRanges.push({
           range: line.range,
           hoverMessage: new vscode.MarkdownString(
             `**⚠️ Cache Line Crossing**\n\n` +
-            `Field \`${safeFieldName}\` (${field.size} bytes) spans cache lines ${field.cacheLineStart} and ${field.cacheLineEnd}.\n\n` +
-            `This can cause **false sharing** in concurrent access and reduce cache efficiency.\n\n` +
+            `Field \`${codeSpan(field.name)}\` (${field.size} bytes) spans cache lines ${field.cacheLineStart} and ${field.cacheLineEnd}.\n\n` +
+            `A read of this field touches two cache lines, and if neighbours are written from other goroutines it invites **false sharing**.\n\n` +
             `Consider:\n` +
-            `- Padding to align to cache line boundary\n` +
-            `- Splitting into smaller fields\n` +
-            `- Using \`//go:align ${CACHE_LINE_SIZE}\` directive`
+            `- Reordering so the field starts on a ${CACHE_LINE_SIZE}-byte boundary\n` +
+            `- Adding a \`_ [N]byte\` pad field in front of it\n` +
+            `- Splitting hot and cold fields into separate structs`
           )
         });
       }
@@ -402,20 +405,60 @@ async function optimizeStructCommand(parser: GoParser, optimizer: StructOptimize
     }
   }
 
+  // the confirm prompt is async: the user may have typed meanwhile, so
+  // re-parse and replace only the struct's own lines instead of pasting a
+  // stale copy of the whole document back over their edits
   const text = editor.document.getText();
-  const optimized = optimizer.generateOptimizedCode(text, struct, result);
+  if (text.length > MAX_FILE_SIZE) {
+    return;
+  }
+  const fresh = parser.parseStructs(text)
+    .find(s => s.name === struct.name && s.lineNumber <= line && line <= s.endLineNumber)
+    ?? parser.parseStructs(text).find(s => s.name === struct.name);
+  if (!fresh) {
+    vscode.window.showErrorMessage(`${struct.name} changed while the preview was open; run optimize again`);
+    return;
+  }
+  const freshResult = optimizer.optimizeStruct(fresh);
+  if (freshResult.bytesSaved <= 0) {
+    vscode.window.showInformationMessage(`Struct ${fresh.name} is already optimally ordered`);
+    return;
+  }
+  const optimized = optimizer.generateOptimizedCode(text, fresh, freshResult);
+  const newLines = optimized.split('\n');
+  const oldLines = text.split('\n');
+  // the rewrite only touches [lineNumber, endLineNumber]; everything after
+  // shifts by the line-count delta
+  const delta = newLines.length - oldLines.length;
+  const replacement = newLines.slice(fresh.lineNumber, fresh.endLineNumber + 1 + delta).join('\n');
 
-  await editor.edit(editBuilder => {
-    const fullRange = new vscode.Range(
-      editor.document.positionAt(0),
-      editor.document.positionAt(text.length)
+  const ok = await editor.edit(editBuilder => {
+    const range = new vscode.Range(
+      new vscode.Position(fresh.lineNumber, 0),
+      editor.document.lineAt(fresh.endLineNumber).range.end
     );
-    editBuilder.replace(fullRange, optimized);
+    editBuilder.replace(range, replacement);
   });
+  if (!ok) {
+    vscode.window.showErrorMessage(`Could not apply the reorder to ${fresh.name}`);
+    return;
+  }
 
   vscode.window.showInformationMessage(
-    `Optimized ${struct.name}: saved ${result.bytesSaved} bytes (${result.originalSize}B → ${result.optimizedSize}B, pack ${struct.packScore}% → ${computePackFromResult(result)}%)`
+    `Optimized ${fresh.name}: saved ${freshResult.bytesSaved} bytes (${freshResult.originalSize}B → ${freshResult.optimizedSize}B, pack ${fresh.packScore}% → ${computePackFromResult(freshResult)}%)`
   );
+}
+
+// text for a markdown `code span`: strip backticks, nothing else is special there
+function codeSpan(str: string): string {
+  return str.replace(/`/g, '');
+}
+
+// paddingWarningThreshold: 0 is a legal "flag everything" value; only
+// garbage falls back to the default
+function readPaddingThreshold(config: vscode.WorkspaceConfiguration): number {
+  const n = Number(config.get('paddingWarningThreshold', 8));
+  return Number.isFinite(n) && n >= 0 ? n : 8;
 }
 
 function computePackFromResult(result: { optimizedSize: number; optimizedPadding: number }): number {
@@ -775,7 +818,7 @@ async function analyzeWorkspaceCommand(parser: GoParser, optimizer: StructOptimi
 
       try {
         // VULN-010: Check file size before reading
-        const stat = fs.statSync(file.fsPath);
+        const stat = await fsPromises.stat(file.fsPath);
         if (stat.size > MAX_FILE_SIZE) {
           console.debug(`Skipping large file: ${file.fsPath} (${stat.size} bytes)`);
           continue;
@@ -946,10 +989,11 @@ class MemoryLayoutHoverProvider implements vscode.HoverProvider {
         const markdown = new vscode.MarkdownString();
         const safeStructName = escapeMarkdown(struct.name);
         const safeFieldName = escapeMarkdown(field.name);
-        const safeTypeName = escapeMarkdown(field.typeName);
 
         markdown.appendMarkdown(`**${safeStructName}.${safeFieldName}**\n\n`);
-        markdown.appendMarkdown(`Type: \`${safeTypeName}\`\n\n`);
+        // inside a code span backslashes render literally, so only the
+        // backtick itself needs neutralising
+        markdown.appendMarkdown(`Type: \`${codeSpan(field.typeName)}\`\n\n`);
         markdown.appendMarkdown(`Offset: ${field.offset} bytes\n\n`);
         markdown.appendMarkdown(`Size: ${field.size} bytes\n\n`);
         markdown.appendMarkdown(`Alignment: ${field.alignment} bytes\n\n`);
@@ -1063,8 +1107,7 @@ function publishDiagnostics(
   optimizer: StructOptimizer
 ): void {
   const config = vscode.workspace.getConfiguration('goMemoryVisualizer');
-  const rawThreshold = config.get('paddingWarningThreshold', 8);
-  const paddingThreshold = Math.max(0, Number(rawThreshold) || 8);
+  const paddingThreshold = readPaddingThreshold(config);
   const cacheLineWarnings = config.get('showCacheLineWarnings', true);
 
   const items = buildStructDiagnostics(structs, optimizer, {
@@ -1158,11 +1201,12 @@ async function compareArchitecturesCommand(parser: GoParser) {
     .map(l => `<td><strong>${l.totalSize}B</strong> &middot; ${l.totalPadding}B pad &middot; align ${l.alignment}</td>`)
     .join('');
 
-  const fieldNames = comparison.layouts[0].fields.map(f => f.name);
-  const fieldRows = fieldNames.map(name => {
+  // same source on every arch, so field i is the same field everywhere.
+  // looking up by name collapsed repeated `_` fields into one row.
+  const fieldRows = comparison.layouts[0].fields.map((first, i) => {
     const cells = comparison.layouts
       .map(l => {
-        const f = l.fields.find(ff => ff.name === name);
+        const f = l.fields[i];
         if (!f) {
           return `<td>-</td>`;
         }
@@ -1170,7 +1214,7 @@ async function compareArchitecturesCommand(parser: GoParser) {
         return `<td>off ${f.offset} &middot; ${f.size}B${padCell}</td>`;
       })
       .join('');
-    return `<tr><th>${escapeHtml(name)}</th>${cells}</tr>`;
+    return `<tr><th>${escapeHtml(first.name)}</th>${cells}</tr>`;
   }).join('');
 
   panel.webview.html = `

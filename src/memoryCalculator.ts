@@ -26,6 +26,8 @@ export class MemoryCalculator {
   private structRegistry: Map<string, StructDefinition> = new Map();
   private typeAliasRegistry: Map<string, string> = new Map();
   private interfaceRegistry: Set<string> = new Set(BUILTIN_INTERFACES);
+  // same-file integer consts so `[maxLen]byte` can be sized
+  private constRegistry: Map<string, number> = new Map();
   // when true we size common stdlib types (time.Time, sync.Mutex, ...) correctly
   private useKnownTypes: boolean = true;
 
@@ -61,10 +63,17 @@ export class MemoryCalculator {
     this.interfaceRegistry.add(name);
   }
 
+  registerConst(name: string, value: number): void {
+    if (Number.isFinite(value) && value >= 0) {
+      this.constRegistry.set(name, value);
+    }
+  }
+
   clearStructRegistry(): void {
     this.structRegistry.clear();
     this.typeAliasRegistry.clear();
     this.interfaceRegistry = new Set(BUILTIN_INTERFACES);
+    this.constRegistry.clear();
   }
 
   /**
@@ -137,9 +146,11 @@ export class MemoryCalculator {
         }
         if (typeName.startsWith('[') && typeName.includes(']')) {
           // Array type [N]T
-          const match = typeName.match(/\[(\d+)\](.+)/);
+          const match = typeName.match(/^\[(\w+)\](.+)/);
           if (match) {
-            const count = parseInt(match[1], 10);
+            const count = /^\d+$/.test(match[1])
+              ? parseInt(match[1], 10)
+              : (this.constRegistry.get(match[1]) ?? NaN);
             const elemType = match[2];
             const elemInfo = this.getTypeInfo(elemType, seen);
             // hard cap element count - huge arrays used to OOM the memory map UI

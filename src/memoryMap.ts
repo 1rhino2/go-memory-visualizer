@@ -7,6 +7,8 @@ export interface MemoryMapCell {
   offset: number;
   kind: MapCellKind;
   fieldName?: string;
+  // position in struct.fields, so two `_` fields stay distinguishable
+  fieldIndex?: number;
   // stable index so the UI can color the same field consistently
   colorIndex: number;
 }
@@ -46,7 +48,7 @@ export function computePackScore(totalSize: number, totalPadding: number): numbe
 
 export function buildMemoryMap(struct: StructInfo): MemoryMap {
   const cells: MemoryMapCell[] = [];
-  const colorByField = new Map<string, number>();
+  const colorByField = new Map<number, number>();
   let nextColor = 0;
 
   // never allocate one cell per byte for multi-MB structs
@@ -54,16 +56,17 @@ export function buildMemoryMap(struct: StructInfo): MemoryMap {
   const truncated = struct.totalSize > MAX_MEMORY_MAP_BYTES;
 
   for (let offset = 0; offset < mapSize; offset++) {
-    const owner = findFieldAt(struct.fields, offset);
-    if (owner) {
-      if (!colorByField.has(owner.name)) {
-        colorByField.set(owner.name, nextColor++);
+    const ownerIdx = findFieldAt(struct.fields, offset);
+    if (ownerIdx >= 0) {
+      if (!colorByField.has(ownerIdx)) {
+        colorByField.set(ownerIdx, nextColor++);
       }
       cells.push({
         offset,
         kind: 'field',
-        fieldName: owner.name,
-        colorIndex: colorByField.get(owner.name)!
+        fieldName: struct.fields[ownerIdx].name,
+        fieldIndex: ownerIdx,
+        colorIndex: colorByField.get(ownerIdx)!
       });
     } else {
       cells.push({
@@ -90,13 +93,19 @@ export function buildMemoryMap(struct: StructInfo): MemoryMap {
   };
 }
 
-function findFieldAt(fields: FieldInfo[], offset: number): FieldInfo | undefined {
-  for (const field of fields) {
+function findFieldAt(fields: FieldInfo[], offset: number): number {
+  for (let i = 0; i < fields.length; i++) {
+    const field = fields[i];
     if (offset >= field.offset && offset < field.offset + field.size) {
-      return field;
+      return i;
     }
   }
-  return undefined;
+  return -1;
+}
+
+// legend key: field index when we have it, name otherwise (hand-built cells)
+export function cellKey(cell: MemoryMapCell): string {
+  return cell.fieldIndex !== undefined ? `#${cell.fieldIndex}` : (cell.fieldName || '');
 }
 
 // Compact ASCII map for markdown export / clipboard. Each char is one byte.
@@ -112,9 +121,12 @@ export function renderAsciiMap(map: MemoryMap, bytesPerRow: number = 16): string
   const glyphs = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
   let glyphIdx = 0;
 
+  const legendName = new Map<string, string>();
   for (const cell of map.cells) {
-    if (cell.kind === 'field' && cell.fieldName && !legend.has(cell.fieldName)) {
-      legend.set(cell.fieldName, glyphs[glyphIdx % glyphs.length]);
+    const key = cellKey(cell);
+    if (cell.kind === 'field' && cell.fieldName && !legend.has(key)) {
+      legend.set(key, glyphs[glyphIdx % glyphs.length]);
+      legendName.set(key, cell.fieldName);
       glyphIdx++;
     }
   }
@@ -127,7 +139,7 @@ export function renderAsciiMap(map: MemoryMap, bytesPerRow: number = 16): string
       if (cell.kind === 'padding') {
         row += '.';
       } else if (cell.fieldName) {
-        row += legend.get(cell.fieldName) || '?';
+        row += legend.get(cellKey(cell)) || '?';
       } else {
         row += ' ';
       }
@@ -138,7 +150,7 @@ export function renderAsciiMap(map: MemoryMap, bytesPerRow: number = 16): string
   }
 
   lines.push('');
-  lines.push('legend: ' + [...legend.entries()].map(([name, g]) => `${g}=${name}`).join('  ') + '  .=padding');
+  lines.push('legend: ' + [...legend.entries()].map(([key, g]) => `${g}=${legendName.get(key)}`).join('  ') + '  .=padding');
   return lines.join('\n');
 }
 

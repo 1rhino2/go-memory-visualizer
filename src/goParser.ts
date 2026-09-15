@@ -12,6 +12,10 @@ const INTERFACE_START_RE = /^\s*type\s+(\w+)(?:\[[^\]]*\])?\s+interface\s*\{/;
 const BLOCK_STRUCT_RE = /^(\w+)(?:\[[^\]]*\])?\s+struct\s*\{/;
 const BLOCK_INTERFACE_RE = /^(\w+)(?:\[[^\]]*\])?\s+interface\s*\{/;
 const TYPE_ALIAS_RE = /^(\w+)\s+(?:=\s*)?(.+)$/;
+// `const N = 16` / `const N int = 16`, and the same shape inside `const (`.
+// Only plain integer literals; anything with iota or arithmetic is skipped.
+const CONST_LINE_RE = /^\s*const\s+(\w+)\s*(?:\w+\s*)?=\s*(\d+)\s*$/;
+const CONST_ENTRY_RE = /^(\w+)\s*(?:\w+\s*)?=\s*(\d+)$/;
 
 interface ParsedField {
   name: string;
@@ -52,6 +56,20 @@ export class GoParser {
       const line = lines[i];
       const structMatch = line.match(STRUCT_START_RE);
       const interfaceMatch = line.match(INTERFACE_START_RE);
+
+      const constMatch = line.split('//')[0].match(CONST_LINE_RE);
+      if (constMatch) {
+        this.calculator.registerConst(constMatch[1], parseInt(constMatch[2], 10));
+      } else if (line.trim() === 'const (') {
+        i++;
+        while (i < lines.length && lines[i].trim() !== ')') {
+          const m = lines[i].split('//')[0].trim().match(CONST_ENTRY_RE);
+          if (m) {
+            this.calculator.registerConst(m[1], parseInt(m[2], 10));
+          }
+          i++;
+        }
+      }
 
       if (line.trim() === 'type (') {
         i++;
@@ -212,7 +230,7 @@ export class GoParser {
 
         for (const name of names) {
           if (fields.length >= MAX_STRUCT_FIELDS) {
-            return { fields, endIndex: innerResult.endIndex };
+            break;
           }
           fields.push(withLineNumbers
             ? { name, typeName: synthName, lineNumber: startLine, endLineNumber: innerResult.endIndex }
@@ -223,8 +241,10 @@ export class GoParser {
       }
 
       for (const f of this.parseFieldLine(cleanFieldLine, parentName, nextAnon, i, i)) {
+        // past the cap we still walk to the closing brace so endIndex is
+        // right, we just stop recording fields
         if (fields.length >= MAX_STRUCT_FIELDS) {
-          return { fields, endIndex: i };
+          break;
         }
         fields.push(withLineNumbers ? f : { name: f.name, typeName: f.typeName });
       }

@@ -60,7 +60,22 @@ Extension:
   padding and cache-line highlights, which it used to disable as well.
 - Any `goMemoryVisualizer.*` setting change re-renders, not only the
   stdlib toggle.
-- Compare Architectures honours `useKnownStdlibTypes`.
+- Compare Architectures honours `useKnownStdlibTypes`, and lists repeated
+  `_` fields as separate rows.
+- Applying an optimize no longer replaces the whole document with the text
+  captured before the confirm prompt (edits made while it was open were
+  lost). It re-parses and replaces only the struct's own lines.
+- Hover and cache-line tooltips showed `sync\.Mutex` style backslashes
+  inside code spans; the cache-line tip also suggested a `//go:align`
+  directive that does not exist in Go.
+- `paddingWarningThreshold: 0` was silently treated as 8.
+- A debounced refresh firing after its editor closed could throw.
+- Memory map colours and legend are keyed by field index, so two `_`
+  fields no longer share one colour.
+- `[N]T` arrays resolve `N` from a same-file `const` (plain integer
+  literals, single or grouped). Common stdlib interfaces (`io.Reader`,
+  `fmt.Stringer`, `http.Handler`, ...) size as 2 words instead of one.
+- Hitting the 2000-field cap no longer mis-reports where the struct ends.
 
 ## [1.1.1] - 2026-07-15
 

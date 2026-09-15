@@ -84,6 +84,52 @@ export function getKnownTypeInfo(
     case 'json.RawMessage':
       return { size: p * 3, alignment: p }; // []byte header
 
+    // stdlib interfaces: 2 words, same as any interface value
+    case 'io.Reader':
+    case 'io.Writer':
+    case 'io.Closer':
+    case 'io.Seeker':
+    case 'io.ReadCloser':
+    case 'io.WriteCloser':
+    case 'io.ReadWriter':
+    case 'io.ReadWriteCloser':
+    case 'io.ReadSeeker':
+    case 'io.ReaderAt':
+    case 'io.WriterAt':
+    case 'io.ByteReader':
+    case 'io.ByteWriter':
+    case 'io.RuneReader':
+    case 'io.StringWriter':
+    case 'fmt.Stringer':
+    case 'fmt.Formatter':
+    case 'sort.Interface':
+    case 'sync.Locker':
+    case 'http.Handler':
+    case 'http.ResponseWriter':
+    case 'http.RoundTripper':
+    case 'http.CookieJar':
+    case 'net.Conn':
+    case 'net.Listener':
+    case 'net.Addr':
+    case 'error':
+    case 'encoding.BinaryMarshaler':
+    case 'encoding.TextMarshaler':
+    case 'json.Marshaler':
+    case 'json.Unmarshaler':
+    case 'sql.Scanner':
+    case 'driver.Valuer':
+    case 'reflect.Type':
+    case 'hash.Hash':
+    case 'hash.Hash32':
+    case 'hash.Hash64':
+    case 'slog.Handler':
+    case 'fs.File':
+    case 'fs.FS':
+    case 'fs.FileInfo':
+    case 'fs.DirEntry':
+    case 'rand.Source':
+      return { size: p * 2, alignment: p };
+
     default:
       return undefined;
   }

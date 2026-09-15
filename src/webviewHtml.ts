@@ -1,4 +1,4 @@
-import { MemoryMap, OptimizePreview } from './memoryMap';
+import { MemoryMap, OptimizePreview, cellKey } from './memoryMap';
 import { escapeHtml } from './security';
 
 // Solid palette - no gradients. Distinct enough to tell fields apart.
@@ -29,17 +29,18 @@ function cellColor(colorIndex: number, kind: string): string {
 
 export function buildMemoryMapHtml(map: MemoryMap, ascii: string): string {
   const safeName = escapeHtml(map.structName);
-  const legendEntries = new Map<string, number>();
+  const legendEntries = new Map<string, { name: string; colorIndex: number }>();
   for (const cell of map.cells) {
-    if (cell.kind === 'field' && cell.fieldName && !legendEntries.has(cell.fieldName)) {
-      legendEntries.set(cell.fieldName, cell.colorIndex);
+    const key = cellKey(cell);
+    if (cell.kind === 'field' && cell.fieldName && !legendEntries.has(key)) {
+      legendEntries.set(key, { name: cell.fieldName, colorIndex: cell.colorIndex });
     }
   }
 
   let legendHtml = '';
-  for (const [name, idx] of legendEntries) {
-    const color = cellColor(idx, 'field');
-    legendHtml += `<span class="legend-item"><span class="swatch" style="background:${color}"></span>${escapeHtml(name)}</span>`;
+  for (const entry of legendEntries.values()) {
+    const color = cellColor(entry.colorIndex, 'field');
+    legendHtml += `<span class="legend-item"><span class="swatch" style="background:${color}"></span>${escapeHtml(entry.name)}</span>`;
   }
   legendHtml += `<span class="legend-item"><span class="swatch" style="background:${PAD_COLOR}"></span>padding</span>`;
 
