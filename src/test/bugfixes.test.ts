@@ -4,6 +4,7 @@ import { GoParser } from '../goParser';
 import { StructOptimizer } from '../optimizer';
 import { MemoryCalculator } from '../memoryCalculator';
 import { getKnownTypeInfo } from '../knownTypes';
+import { buildMemoryMap, renderAsciiMap } from '../memoryMap';
 
 // regression tests for the 1.1.2 bugcheck. every expected number here was
 // checked against unsafe.Sizeof / unsafe.Offsetof on a real Go toolchain.
@@ -290,7 +291,6 @@ test('memory map keeps repeated _ fields distinct', () => {
 	A int32
 	_ [8]byte
 }`);
-  const { buildMemoryMap, renderAsciiMap } = require('../memoryMap') as typeof import('../memoryMap');
   const map = buildMemoryMap(t);
   const first = map.cells[0];
   const third = map.cells[8];
